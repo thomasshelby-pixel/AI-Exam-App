@@ -35,15 +35,13 @@ export default function SubmitCopyScreen() {
  }
  async function submit() {
    setError("");setMessage("");
+   if(!ack){setError("Please acknowledge the evaluation disclaimer before continuing.");return;}
    if(!picked){setError("Choose your answer-sheet PDF first.");return;}
    if(!subjectName.trim()||!subjectKey.trim()){setError("Enter the exact subject name and subject key used by CA Exam Checker.");return;}
    if(materialType==="MTP"&& !["1","2"].includes(mtpSeries)){setError("Choose MTP Series 1 or 2.");return;}
    setBusy(true);
    try {
-     if(!ack){
-       await apiRequest("/api/student/disclaimer/acknowledge",{method:"POST",body:JSON.stringify({version:"v1.0"})});
-       setAck(true);
-     }
+     await apiRequest("/api/student/disclaimer/acknowledge",{method:"POST",body:JSON.stringify({version:"v1.0"})});
      const encoded=await FileSystem.readAsStringAsync(picked.uri,{encoding:FileSystem.EncodingType.Base64});
      const body:Record<string,unknown>={studentName:"",level,materialType,subjectKey:subjectKey.trim(),subjectName:subjectName.trim(),attempt:attempt.trim(),checkingMode,fileBase64:encoded,mimeType:picked.mimeType||"application/pdf",filename:picked.name,evaluationSource:"SELF",examType:"CA"};
      if(materialType==="MTP")body.mtpSeries=Number(mtpSeries);
