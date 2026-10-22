@@ -56,6 +56,7 @@ export default function DashboardScreen() {
           <View style={styles.stat}><Text style={styles.statNumber}>{data.profile?.completedEvaluations ?? "—"}</Text><Text style={styles.statLabel}>Evaluated</Text></View>
         </View>
         <Text style={styles.section}>Quick access</Text>
+        <Pressable style={styles.action} onPress={() => router.push("/submit-copy")}><Text style={styles.actionIcon}>📝</Text><View style={styles.actionCopy}><Text style={styles.actionTitle}>Submit answer sheet</Text><Text style={styles.actionSub}>Upload a PDF for evaluation</Text></View><Text style={styles.arrow}>›</Text></Pressable>
         <Pressable style={styles.action} onPress={() => router.push("/evaluations")}><Text style={styles.actionIcon}>📑</Text><View style={styles.actionCopy}><Text style={styles.actionTitle}>Evaluations & results</Text><Text style={styles.actionSub}>Check status, marks and feedback</Text></View><Text style={styles.arrow}>›</Text></Pressable>
         <Pressable style={styles.action} onPress={() => router.push("/profile")}><Text style={styles.actionIcon}>👤</Text><View style={styles.actionCopy}><Text style={styles.actionTitle}>Student profile</Text><Text style={styles.actionSub}>Review course and exam attempt</Text></View><Text style={styles.arrow}>›</Text></Pressable>
         <View style={styles.notice}><Text style={styles.noticeTitle}>Official evaluation data</Text><Text style={styles.noticeText}>Results and progress are fetched from your existing CA Exam Checker account.</Text></View>
