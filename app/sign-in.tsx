@@ -25,6 +25,7 @@ export default function SignInScreen() {
       const result = await apiRequest<{
         token?: string;
         mfaRequired?: boolean;
+        mfaSessionToken?: string;
         message?: string;
         error?: string;
         user?: { id: string; email: string; fullName: string; role: string; status: string };
@@ -33,7 +34,8 @@ export default function SignInScreen() {
         body: JSON.stringify({ email: email.trim().toLowerCase(), password, portalScope: "STUDENT" })
       });
       if (result.mfaRequired) {
-        setError(result.message || "This account requires additional verification. Complete verification using the website before signing in here.");
+        if (result.mfaSessionToken) { router.push({ pathname: "/mfa-verify", params: { token: result.mfaSessionToken, message: result.message || "Enter the 6-digit authenticator code." } }); return; }
+        setError(result.message || "Additional verification is required, but the server did not return a verification session.");
         return;
       }
       if (!result.token || !result.user) throw new Error("The server response did not include a valid session.");
