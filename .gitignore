@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+web-build/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+.DS_Store
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
