@@ -63,7 +63,8 @@ export default function SignInScreen() {
           <Pressable onPress={signIn} disabled={busy} style={[styles.button, busy && styles.disabled]}>
             {busy ? <ActivityIndicator color="#101827" /> : <Text style={styles.buttonText}>Sign in securely  →</Text>}
           </Pressable>
-          <Text style={styles.security}>Your password is not stored locally. Authentication will be completed by the existing server once the verified mobile contract is connected.</Text>
+          <Link href="/register" style={styles.register}>New to CA Exam Checker? Create a student account</Link>
+          <Text style={styles.security}>Your password is not stored locally. Authentication is handled by the existing server.</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -85,5 +86,6 @@ const styles = StyleSheet.create({
   button: { marginTop: 22, minHeight: 54, borderRadius: 15, backgroundColor: "#C7F36B", alignItems: "center", justifyContent: "center" },
   disabled: { opacity: 0.7 },
   buttonText: { color: "#101827", fontWeight: "800", fontSize: 15 },
+  register: { color: "#C7F36B", fontSize: 12, fontWeight: "800", marginTop: 18, textAlign: "center" },
   security: { color: "#748199", fontSize: 11, lineHeight: 17, marginTop: 18 }
 });
