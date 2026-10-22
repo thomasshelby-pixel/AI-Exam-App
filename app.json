@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "AI Exam",
+    "slug": "ai-exam-app",
+    "scheme": "aiexam",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.caexamchecker.aiapp"
+    },
+    "android": {
+      "package": "com.caexamchecker.aiapp",
+      "adaptiveIcon": {
+        "backgroundColor": "#101828"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-document-picker"
+    ]
+  }
+}
