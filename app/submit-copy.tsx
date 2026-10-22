@@ -41,7 +41,9 @@ export default function SubmitCopyScreen() {
    if(materialType==="MTP"&& !["1","2"].includes(mtpSeries)){setError("Choose MTP Series 1 or 2.");return;}
    setBusy(true);
    try {
-     await apiRequest("/api/student/disclaimer/acknowledge",{method:"POST",body:JSON.stringify({version:"v1.0"})});
+     const disclaimer=await apiRequest<{acknowledged?:boolean;currentVersion?:string}>("/api/student/disclaimer/status");
+     if(!disclaimer.currentVersion) throw new Error("The server did not provide the current disclaimer version. Please try again later.");
+     if(!disclaimer.acknowledged) await apiRequest("/api/student/disclaimer/acknowledge",{method:"POST",body:JSON.stringify({version:disclaimer.currentVersion})});
      const encoded=await FileSystem.readAsStringAsync(picked.uri,{encoding:FileSystem.EncodingType.Base64});
      const body:Record<string,unknown>={studentName:"",level,materialType,subjectKey:subjectKey.trim(),subjectName:subjectName.trim(),attempt:attempt.trim(),checkingMode,fileBase64:encoded,mimeType:picked.mimeType||"application/pdf",filename:picked.name,evaluationSource:"SELF",examType:"CA"};
      if(materialType==="MTP")body.mtpSeries=Number(mtpSeries);
