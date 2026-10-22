@@ -11,7 +11,7 @@ Mobile companion app for CA Exam Checker AI. The existing `AI-Exam` website/back
 
 ## Development status
 
-This is the initial app foundation. API paths and payloads must be verified against the existing backend before enabling real account or evaluation actions. Never use guessed endpoints in production.
+Implemented student flows currently include sign-in, email-OTP registration, TOTP MFA verification, dashboard, profile editing, evaluation history/details, PDF submission and authenticated checked-copy/report downloads. These are integrated against inspected website API routes, but must still pass GitHub Actions, typecheck, Expo build and real-device/API smoke tests before being called release-ready. Institute Admin and Super Admin will be separate apps; this repository is Student App only.
 
 ## Setup
 
