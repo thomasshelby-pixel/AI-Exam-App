@@ -46,7 +46,41 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Generate Android native project
-        run: npx expo prebuild --platform android --non-interactive --no-install
+        run: CI=1 npx expo prebuild --platform android --no-install
+      - name: Diagnose Expo publication metadata
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = path.resolve('node_modules');
+          let configs = 0;
+          let suspects = 0;
+          function scan(value, file, trail = '$') {
+            if (!value || typeof value !== 'object') return;
+            for (const [key, child] of Object.entries(value)) {
+              const next = `${trail}.${key}`;
+              if (key === 'publication' && child && typeof child === 'object' && !('version' in child)) {
+                console.log(`PUBLICATION_WITHOUT_VERSION: ${file} at ${next}: ${JSON.stringify(child)}`);
+                suspects++;
+              }
+              scan(child, file, next);
+            }
+          }
+          function walk(dir) {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              if (entry.name === '.cache') continue;
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) walk(full);
+              else if (entry.name === 'expo-module.config.json') {
+                configs++;
+                try { scan(JSON.parse(fs.readFileSync(full, 'utf8')), path.relative(root, full)); }
+                catch (error) { console.log(`INVALID_CONFIG: ${path.relative(root, full)}: ${error.message}`); }
+              }
+            }
+          }
+          walk(root);
+          console.log(`Scanned ${configs} Expo module config files; found ${suspects} publication object(s) without version.`);
+          NODE
       - name: Build installable debug APK
         run: cd android && ./gradlew assembleDebug
       - name: Upload Android APK
