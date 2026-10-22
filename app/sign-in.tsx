@@ -30,7 +30,7 @@ export default function SignInScreen() {
         user?: { id: string; email: string; fullName: string; role: string; status: string };
       }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password, portalScope: "student" })
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, portalScope: "STUDENT" })
       });
       if (result.mfaRequired) {
         setError(result.message || "This account requires additional verification. Complete verification using the website before signing in here.");
