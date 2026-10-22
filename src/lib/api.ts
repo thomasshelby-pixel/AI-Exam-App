@@ -56,3 +56,25 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   }
   return payload as T;
 }
+
+export async function downloadAndShareAuthenticatedFile(path: string, filename: string): Promise<void> {
+  if (!API_BASE_URL) throw new Error("The existing AI-Exam API URL is not configured.");
+  if (!path.startsWith("/") || path.startsWith("//")) throw new Error("Invalid download path.");
+  if (!/^[a-zA-Z0-9._-]+$/.test(filename)) throw new Error("Invalid download filename.");
+  const token = await SecureStore.getItemAsync(TOKEN_KEY);
+  if (!token) throw new Error("Please sign in again before downloading this file.");
+  const FileSystem = await import("expo-file-system/legacy");
+  const Sharing = await import("expo-sharing");
+  if (!FileSystem.documentDirectory) throw new Error("This device does not provide a document storage location.");
+  const destination = `${FileSystem.documentDirectory}${filename}`;
+  const result = await FileSystem.downloadAsync(`${API_BASE_URL}${path}`, destination, { headers: { Accept: "application/pdf", Authorization: `Bearer ${token}` } });
+  if (result.status < 200 || result.status >= 300) {
+    await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+    if (result.status === 401) await clearSession();
+    throw new ApiError(result.status === 403 ? "You do not have permission to download this file." : `The server could not provide the PDF (HTTP ${result.status}).`, result.status);
+  }
+  const info = await FileSystem.getInfoAsync(result.uri);
+  if (!info.exists || (typeof info.size === "number" && info.size === 0)) throw new Error("The server returned an empty file.");
+  if (!(await Sharing.isAvailableAsync())) throw new Error("Secure file download succeeded, but this device cannot open the share sheet.");
+  await Sharing.shareAsync(result.uri, { mimeType: "application/pdf", UTI: "com.adobe.pdf", dialogTitle: "Open or save evaluation PDF" });
+}
