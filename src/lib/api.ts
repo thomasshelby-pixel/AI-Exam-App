@@ -63,7 +63,7 @@ export async function downloadAndShareAuthenticatedFile(path: string, filename: 
   if (!/^[a-zA-Z0-9._-]+$/.test(filename)) throw new Error("Invalid download filename.");
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   if (!token) throw new Error("Please sign in again before downloading this file.");
-  const FileSystem = await import("expo-file-system/legacy");
+  const FileSystem = await import("expo-file-system");
   const Sharing = await import("expo-sharing");
   if (!FileSystem.documentDirectory) throw new Error("This device does not provide a document storage location.");
   const destination = `${FileSystem.documentDirectory}${filename}`;
