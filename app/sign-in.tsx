@@ -1,9 +1,8 @@
 import { Link, router } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import * as SecureStore from "expo-secure-store";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, ApiError } from "@/src/lib/api";
+import { apiRequest, ApiError, saveSessionToken } from "@/src/lib/api";
 
 export default function SignInScreen() {
   const [email, setEmail] = useState("");
@@ -23,11 +22,24 @@ export default function SignInScreen() {
     }
     setBusy(true);
     try {
-      // Deliberately fail closed until the existing backend's exact login route and
-      // session response contract are verified. Never guess an auth endpoint.
-      const contract = await apiRequest<{ configured: boolean }>("/mobile/contract", { method: "GET" });
-      if (!contract.configured) throw new Error("The mobile sign-in contract is not enabled on the backend yet.");
-      setError("The backend contract is reachable, but sign-in wiring must be enabled after its exact response contract is verified.");
+      const result = await apiRequest<{
+        token?: string;
+        mfaRequired?: boolean;
+        message?: string;
+        error?: string;
+        user?: { id: string; email: string; fullName: string; role: string; status: string };
+      }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, portalScope: "student" })
+      });
+      if (result.mfaRequired) {
+        setError(result.message || "This account requires additional verification. Complete verification using the website before signing in here.");
+        return;
+      }
+      if (!result.token || !result.user) throw new Error("The server response did not include a valid session.");
+      if (result.user.role !== "STUDENT") throw new Error("The mobile app currently supports student accounts only. Please use the appropriate web portal.");
+      await saveSessionToken(result.token);
+      router.replace("/dashboard");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Unable to sign in right now.");
     } finally {
