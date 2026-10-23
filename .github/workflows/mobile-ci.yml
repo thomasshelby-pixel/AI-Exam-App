@@ -92,19 +92,35 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: |
+            mkdir -p diagnostics
             adb install -r android/app/build/outputs/apk/release/app-release.apk
             adb logcat -c
             adb shell monkey -p com.caexamchecker.aiapp -c android.intent.category.LAUNCHER 1
             sleep 15
-            adb logcat -d -t 5000 > /tmp/ai-exam-launch-log.txt
+            adb logcat -d -t 5000 > diagnostics/startup-log.txt
+            adb shell screencap -p /sdcard/ca-exam-startup.png
+            adb pull /sdcard/ca-exam-startup.png diagnostics/startup.png
+            adb shell uiautomator dump /sdcard/ca-exam-window.xml
+            adb pull /sdcard/ca-exam-window.xml diagnostics/window.xml
             echo "=== App process ==="
             adb shell pidof com.caexamchecker.aiapp || true
             echo "=== Foreground activity ==="
             adb shell dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity' || true
             echo "=== Relevant launch / crash log lines ==="
-            grep -E 'FATAL EXCEPTION|Fatal signal|ReactNativeJS|AndroidRuntime|Process: com.caexamchecker.aiapp|Unable to load script|com.caexamchecker.aiapp' /tmp/ai-exam-launch-log.txt | tail -n 200 || true
-            if grep -Eq 'FATAL EXCEPTION|Fatal signal' /tmp/ai-exam-launch-log.txt; then echo "Android runtime crash detected during app launch."; exit 1; fi
-            test -n "$(adb shell pidof com.caexamchecker.aiapp)" || { echo "App process exited after launch; see the launch logs above."; exit 1; }
+            grep -E 'FATAL EXCEPTION|Fatal signal|ReactNativeJS|AndroidRuntime|Process: com.caexamchecker.aiapp|Unable to load script|com.caexamchecker.aiapp' diagnostics/startup-log.txt | tail -n 200 || true
+            echo "=== Visible application text ==="
+            grep -E 'CA EXAM CHECKER|Prepare smarter|Built around your exam workflow|Continue to sign in' diagnostics/window.xml || true
+            if grep -Eq 'FATAL EXCEPTION|Fatal signal' diagnostics/startup-log.txt; then echo "Android runtime crash detected during app launch."; exit 1; fi
+            test -n "$(adb shell pidof com.caexamchecker.aiapp)" || { echo "App process exited after launch; see diagnostics/startup-log.txt"; exit 1; }
+            grep -Eq 'CA EXAM CHECKER|Prepare smarter|Built around your exam workflow|Continue to sign in' diagnostics/window.xml || { echo "App process stayed alive, but home-screen UI text was not found; inspect screenshot and logs."; exit 1; }
+      - name: Upload Android startup diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: CA-Exam-Checker-AI-startup-diagnostics
+          path: diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Prepare user-friendly APK filename
         if: ${{ always() && steps.build_release_apk.outcome == 'success' }}
         run: cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/CA-Exam-Checker-AI.apk
