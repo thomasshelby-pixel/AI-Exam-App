@@ -100,8 +100,8 @@ jobs:
             adb logcat -d -t 5000 > diagnostics/startup-log.txt
             adb shell screencap -p /sdcard/ca-exam-startup.png
             adb pull /sdcard/ca-exam-startup.png diagnostics/startup.png
-            adb shell uiautomator dump /sdcard/ca-exam-window.xml
-            adb pull /sdcard/ca-exam-window.xml diagnostics/window.xml
+            timeout 20s adb shell uiautomator dump /sdcard/ca-exam-window.xml || echo "uiautomator dump timed out; screenshot and logcat are still available"
+            adb pull /sdcard/ca-exam-window.xml diagnostics/window.xml || true
             echo "=== App process ==="
             adb shell pidof com.caexamchecker.aiapp || true
             echo "=== Foreground activity ==="
