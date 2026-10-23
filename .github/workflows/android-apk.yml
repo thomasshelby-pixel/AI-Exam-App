@@ -65,6 +65,11 @@ jobs:
         env:
           CI: "1"
 
+      - name: Diagnose Expo Android autolinking projects
+        run: |
+          npx expo-modules-autolinking resolve --platform android > /tmp/expo-autolinking.json
+          node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync("/tmp/expo-autolinking.json","utf8")); const mods=Array.isArray(data)?data:(data.modules||[]); console.log(JSON.stringify(mods.map((m,i)=>({index:i,name:m.packageName||m.name||m.package,projects:(m.projects||[]).map(p=>({name:p.name,publication:p.publication}))})),null,2));'
+
       - name: Build installable debug APK
         run: cd android && ./gradlew assembleDebug --no-daemon
 
