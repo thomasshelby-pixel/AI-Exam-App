@@ -83,10 +83,41 @@ jobs:
           NODE
       - name: Build standalone release APK with embedded JS bundle
         run: cd android && ./gradlew assembleRelease
+      - name: Launch APK in Android emulator and capture crash logs
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            set -eu
+            APK_PATH="android/app/build/outputs/apk/release/app-release.apk"
+            adb install -r "$APK_PATH"
+            adb logcat -c
+            adb shell monkey -p com.caexamchecker.aiapp -c android.intent.category.LAUNCHER 1
+            sleep 15
+            adb logcat -d -t 5000 > /tmp/ai-exam-launch-log.txt
+            echo "=== App process ==="
+            adb shell pidof com.caexamchecker.aiapp || true
+            echo "=== Foreground activity ==="
+            adb shell dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity' || true
+            echo "=== Relevant launch / crash log lines ==="
+            grep -E 'FATAL EXCEPTION|Fatal signal|ReactNativeJS|AndroidRuntime|Process: com.caexamchecker.aiapp|Unable to load script|com.caexamchecker.aiapp' /tmp/ai-exam-launch-log.txt | tail -n 200 || true
+            if grep -Eq 'FATAL EXCEPTION|Fatal signal' /tmp/ai-exam-launch-log.txt; then
+              echo "Android runtime crash detected during app launch."
+              exit 1
+            fi
+            if ! adb shell pidof com.caexamchecker.aiapp >/dev/null 2>&1; then
+              echo "App process exited after launch; see the launch logs above."
+              exit 1
+            fi
+      - name: Prepare user-friendly APK filename
+        run: cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/CA-Exam-Checker-AI.apk
       - name: Upload standalone Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: ai-exam-android-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: CA-Exam-Checker-AI
+          path: android/app/build/outputs/apk/release/CA-Exam-Checker-AI.apk
           if-no-files-found: error
           retention-days: 7
