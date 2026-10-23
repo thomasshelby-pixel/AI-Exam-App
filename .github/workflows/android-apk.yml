@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
+      EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL || 'https://caexamcheckerai.com' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,6 +50,9 @@ jobs:
 
       - name: Install JavaScript dependencies
         run: npm install
+
+      - name: Align dependencies to Expo SDK
+        run: npx expo install --fix
 
       - name: Check TypeScript
         run: npm run typecheck
