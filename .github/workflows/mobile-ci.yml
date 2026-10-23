@@ -91,11 +91,10 @@ jobs:
       - name: Launch APK in Android emulator and capture crash logs
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: 35
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          emulator-options: -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
           script: |
             mkdir -p diagnostics
             timeout 30s adb wait-for-device || echo "ADB did not become ready in time"
