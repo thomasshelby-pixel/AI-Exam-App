@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+# Public production API origin; no secrets are embedded in the client.
+env:
+  EXPO_PUBLIC_API_BASE_URL: https://caexamcheckerai.com
+
 jobs:
   typecheck:
     runs-on: ubuntu-latest
@@ -25,3 +29,116 @@ jobs:
         run: npm run typecheck
       - name: Expo config validation
         run: npx expo config --type public
+      - name: Android bundle export
+        run: npx expo export --platform android
+
+  android-apk:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install dependencies
+        run: npm install
+      - name: Generate Android native project
+        run: CI=1 npx expo prebuild --platform android --no-install
+      - name: Diagnose Expo publication metadata
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = path.resolve('node_modules');
+          let configs = 0;
+          let suspects = 0;
+          function scan(value, file, trail = '$') {
+            if (!value || typeof value !== 'object') return;
+            for (const [key, child] of Object.entries(value)) {
+              const next = `${trail}.${key}`;
+              if (key === 'publication' && child && typeof child === 'object' && !('version' in child)) {
+                console.log(`PUBLICATION_WITHOUT_VERSION: ${file} at ${next}: ${JSON.stringify(child)}`);
+                suspects++;
+              }
+              scan(child, file, next);
+            }
+          }
+          function walk(dir) {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              if (entry.name === '.cache') continue;
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) walk(full);
+              else if (entry.name === 'expo-module.config.json') {
+                configs++;
+                try { scan(JSON.parse(fs.readFileSync(full, 'utf8')), path.relative(root, full)); }
+                catch (error) { console.log(`INVALID_CONFIG: ${path.relative(root, full)}: ${error.message}`); }
+              }
+            }
+          }
+          walk(root);
+          console.log(`Scanned ${configs} Expo module config files; found ${suspects} publication object(s) without version.`);
+          NODE
+      - name: Build standalone release APK with embedded JS bundle
+        id: build_release_apk
+        run: cd android && ./gradlew assembleRelease
+      - name: Launch APK in Android emulator and capture crash logs
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            mkdir -p diagnostics
+            timeout 30s adb wait-for-device || echo "ADB did not become ready in time"
+            timeout 120s adb install -r android/app/build/outputs/apk/release/app-release.apk || { echo "APK installation timed out or failed"; exit 1; }
+            timeout 20s adb logcat -c || echo "Could not clear logcat"
+            timeout 20s adb shell am force-stop com.caexamchecker.aiapp || true
+            timeout 30s adb shell am start -W -n com.caexamchecker.aiapp/.MainActivity > diagnostics/launch.txt 2>&1 || echo "Activity launch command timed out; inspect diagnostics"
+            sleep 20
+            timeout 20s adb logcat -d -t 8000 > diagnostics/startup-log.txt || echo "Logcat capture failed"
+            # Capture directly over adb; avoid /sdcard because emulated-storage can fail independently of the app.
+            timeout 20s adb exec-out screencap -p > diagnostics/startup.png || echo "Screenshot capture failed; inspect startup-log.txt"
+            # /data/local/tmp is independent from emulated external storage.
+            timeout 20s adb shell uiautomator dump /data/local/tmp/ca-exam-window.xml || echo "uiautomator dump failed; inspect screenshot and logcat"
+            timeout 15s adb exec-out cat /data/local/tmp/ca-exam-window.xml > diagnostics/window.xml 2>/dev/null || true
+            echo "=== App process ==="
+            APP_PID="$(timeout 15s adb shell pidof com.caexamchecker.aiapp | tr -d '\r' || true)"
+            echo "${APP_PID:-NO_APP_PID}"
+            echo "=== Foreground activity ==="
+            timeout 20s adb shell dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity' || true
+            echo "=== Relevant app launch / JS errors ==="
+            grep -E 'ReactNativeJS|Unable to load script|Process: com.caexamchecker.aiapp|com.caexamchecker.aiapp.*(FATAL|Exception|Error)|FATAL EXCEPTION' diagnostics/startup-log.txt | tail -n 200 || true
+            echo "=== Visible application text ==="
+            grep -E 'CA EXAM CHECKER|Prepare smarter|Built around your exam workflow|Continue to sign in' diagnostics/window.xml || true
+            if grep -q 'Unable to load script' diagnostics/startup-log.txt; then echo "Embedded JavaScript bundle failed to load."; exit 1; fi
+            if grep -E -A8 'FATAL EXCEPTION' diagnostics/startup-log.txt | grep -q 'com.caexamchecker.aiapp'; then echo "Android runtime crash detected in app process."; exit 1; fi
+            test -n "$APP_PID" || { echo "App process exited after launch; see diagnostics/startup-log.txt"; exit 1; }
+            test -s diagnostics/startup.png || { echo "Screenshot is unavailable; emulator diagnostics are incomplete."; exit 1; }
+            grep -Eq 'CA EXAM CHECKER|Prepare smarter|Built around your exam workflow|Continue to sign in' diagnostics/window.xml || { echo "App process stayed alive, but home-screen UI text was not found; inspect screenshot and logs."; exit 1; }
+      - name: Upload Android startup diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: CA-Exam-Checker-AI-startup-diagnostics
+          path: diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Prepare user-friendly APK filename
+        if: ${{ always() && steps.build_release_apk.outcome == 'success' }}
+        run: cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/CA-Exam-Checker-AI.apk
+      - name: Upload standalone Android APK
+        if: ${{ always() && steps.build_release_apk.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: CA-Exam-Checker-AI
+          path: android/app/build/outputs/apk/release/CA-Exam-Checker-AI.apk
+          if-no-files-found: error
+          retention-days: 7
