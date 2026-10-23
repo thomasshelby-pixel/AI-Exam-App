@@ -87,31 +87,38 @@ jobs:
       - name: Launch APK in Android emulator and capture crash logs
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           arch: x86_64
           profile: pixel_2
           disable-animations: true
+          emulator-options: -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
           script: |
             mkdir -p diagnostics
+            adb wait-for-device
             adb install -r android/app/build/outputs/apk/release/app-release.apk
             adb logcat -c
-            adb shell monkey -p com.caexamchecker.aiapp -c android.intent.category.LAUNCHER 1
-            sleep 15
-            adb logcat -d -t 5000 > diagnostics/startup-log.txt
-            adb shell screencap -p /sdcard/ca-exam-startup.png
-            adb pull /sdcard/ca-exam-startup.png diagnostics/startup.png
-            timeout 20s adb shell uiautomator dump /sdcard/ca-exam-window.xml || echo "uiautomator dump timed out; screenshot and logcat are still available"
-            adb pull /sdcard/ca-exam-window.xml diagnostics/window.xml || true
+            adb shell am force-stop com.caexamchecker.aiapp || true
+            adb shell am start -W -n com.caexamchecker.aiapp/.MainActivity
+            sleep 20
+            adb logcat -d -t 8000 > diagnostics/startup-log.txt || true
+            # Capture directly over adb; avoid /sdcard because emulated-storage can fail independently of the app.
+            adb exec-out screencap -p > diagnostics/startup.png || echo "Screenshot capture failed; inspect startup-log.txt"
+            # /data/local/tmp is independent from emulated external storage.
+            timeout 20s adb shell uiautomator dump /data/local/tmp/ca-exam-window.xml || echo "uiautomator dump failed; inspect screenshot and logcat"
+            adb exec-out cat /data/local/tmp/ca-exam-window.xml > diagnostics/window.xml 2>/dev/null || true
             echo "=== App process ==="
-            adb shell pidof com.caexamchecker.aiapp || true
+            APP_PID="$(adb shell pidof com.caexamchecker.aiapp | tr -d '\r' || true)"
+            echo "${APP_PID:-NO_APP_PID}"
             echo "=== Foreground activity ==="
             adb shell dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity' || true
-            echo "=== Relevant launch / crash log lines ==="
-            grep -E 'FATAL EXCEPTION|Fatal signal|ReactNativeJS|AndroidRuntime|Process: com.caexamchecker.aiapp|Unable to load script|com.caexamchecker.aiapp' diagnostics/startup-log.txt | tail -n 200 || true
+            echo "=== Relevant app launch / JS errors ==="
+            grep -E 'ReactNativeJS|Unable to load script|Process: com.caexamchecker.aiapp|com.caexamchecker.aiapp.*(FATAL|Exception|Error)|FATAL EXCEPTION' diagnostics/startup-log.txt | tail -n 200 || true
             echo "=== Visible application text ==="
             grep -E 'CA EXAM CHECKER|Prepare smarter|Built around your exam workflow|Continue to sign in' diagnostics/window.xml || true
-            if grep -Eq 'FATAL EXCEPTION|Fatal signal' diagnostics/startup-log.txt; then echo "Android runtime crash detected during app launch."; exit 1; fi
-            test -n "$(adb shell pidof com.caexamchecker.aiapp)" || { echo "App process exited after launch; see diagnostics/startup-log.txt"; exit 1; }
+            if grep -q 'Unable to load script' diagnostics/startup-log.txt; then echo "Embedded JavaScript bundle failed to load."; exit 1; fi
+            if grep -E -A8 'FATAL EXCEPTION' diagnostics/startup-log.txt | grep -q 'com.caexamchecker.aiapp'; then echo "Android runtime crash detected in app process."; exit 1; fi
+            test -n "$APP_PID" || { echo "App process exited after launch; see diagnostics/startup-log.txt"; exit 1; }
+            test -s diagnostics/startup.png || { echo "Screenshot is unavailable; emulator diagnostics are incomplete."; exit 1; }
             grep -Eq 'CA EXAM CHECKER|Prepare smarter|Built around your exam workflow|Continue to sign in' diagnostics/window.xml || { echo "App process stayed alive, but home-screen UI text was not found; inspect screenshot and logs."; exit 1; }
       - name: Upload Android startup diagnostics
         if: ${{ always() }}
