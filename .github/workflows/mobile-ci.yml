@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+# Public production API origin; no secrets are embedded in the client.
+env:
+  EXPO_PUBLIC_API_BASE_URL: https://caexamcheckerai.com
+
 jobs:
   typecheck:
     runs-on: ubuntu-latest
