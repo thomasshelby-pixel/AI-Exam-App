@@ -11,7 +11,7 @@ Receiving a password-reset email means the existing backend mail workflow is ope
 Push messages that should appear while the app is backgrounded/closed require server-side sending as well as native client registration:
 
 1. In Firebase Console, add an Android app whose package ID is exactly `com.caexamchecker.aiapp`.
-2. Download its `google-services.json` and supply it as a protected build input at the path configured by `expo.android.googleServicesFile`. The Firebase project file is not present in this repository yet.
+2. Download its `google-services.json`. This repository does not have the file or the `expo.android.googleServicesFile` property yet; add both together after selecting the correct Firebase project. The file contains client identifiers, while the FCM service-account private key in the next step must stay secret. If the JSON is kept out of Git, make it available as a local/EAS build input before prebuild.
 3. Configure the FCM HTTP v1 service-account credential in a server/deployment secret store, never in React Native source code.
 4. Add backend endpoints to register/remove a student's FCM token and a server-side notification sender. Bind tokens to the authenticated user, rate-limit registration, and remove tokens on logout/account deletion. Admin broadcasts must be sent through the backend.
 5. Add client token registration once the API route and Firebase Android config are available, then test on a standalone release build. Expo Go is not a valid push delivery test for the installed app.
