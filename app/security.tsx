@@ -7,13 +7,20 @@ import { ApiError, apiRequest, saveDeviceTrustToken, saveSessionToken } from "@/
 type Session = { id: string; device_id?: string; device_name?: string; ip_address?: string; status?: string; created_at?: string; last_activity_at?: string; expires_at?: string };
 type MfaStatus = { role?: string; mfaMandatory?: boolean; mfaEnabled?: boolean; mfaVerified?: boolean; authenticatorsCount?: number; recoveryCodesRemaining?: number; recoveryCodesTotal?: number };
 type Setup = { secretKey?: string; secret?: string; manualEntryKey?: string; formattedKey?: string; otpauthUri?: string; otpauthUrl?: string; qrDataUrl?: string; qrCodeDataUrl?: string; qrCode?: string; accountEmail?: string };
-type TrustedDevice = { deviceId?: string; device_id?: string; deviceName?: string; device_name?: string; trustedAt?: string; trusted_at?: string; expiresAt?: string; expires_at?: string };
+type TrustedDevice = { deviceId?: string; device_id?: string; deviceName?: string; device_name?: string; trustedAt?: string; trusted_at?: string; expiresAt?: string; expires_at?: string; lastUsedAt?: string };
+type Authenticator = { id: string; factorType?: string; label?: string; createdAt?: string; lastUsedAt?: string | null };
+type SecurityAudit = { id: string; eventType?: string; action?: string; status?: string; details?: string; createdAt?: string; istTimestamp?: string };
 function fmt(v?: string) { return v && !Number.isNaN(Date.parse(v)) ? new Date(v).toLocaleString() : "—"; }
 
 export default function SecurityScreen() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [mfa, setMfa] = useState<MfaStatus | null>(null);
   const [trusted, setTrusted] = useState<TrustedDevice[]>([]);
+  const [authenticators, setAuthenticators] = useState<Authenticator[]>([]);
+  const [auditLogs, setAuditLogs] = useState<SecurityAudit[]>([]);
+  const [backupLabel, setBackupLabel] = useState("Backup phone");
+  const [backupSetup, setBackupSetup] = useState<Setup | null>(null);
+  const [backupOtp, setBackupOtp] = useState("");
   const [setup, setSetup] = useState<Setup | null>(null);
   const [otp, setOtp] = useState("");
   const [codes, setCodes] = useState<string[]>([]);
@@ -30,14 +37,18 @@ export default function SecurityScreen() {
     if (initial) setBusy(true);
     setError("");
     try {
-      const [sessionData, mfaData, trustData] = await Promise.all([
+      const [sessionData, mfaData, trustData, authData, auditData] = await Promise.all([
         apiRequest<{ sessions?: Session[]; activeCount?: number; maxAllowed?: number }>("/api/auth/active-sessions"),
         apiRequest<MfaStatus>("/api/auth/mfa/status"),
         apiRequest<{ trustedDevices?: TrustedDevice[] }>("/api/auth/mfa/trusted-devices").catch(() => ({ trustedDevices: [] })),
+        apiRequest<{ authenticators?: Authenticator[] }>("/api/auth/mfa/authenticators").catch(() => ({ authenticators: [] })),
+        apiRequest<{ logs?: SecurityAudit[] }>("/api/auth/mfa/audit-logs").catch(() => ({ logs: [] })),
       ]);
       setSessions(sessionData.sessions || []);
       setMfa(mfaData);
       setTrusted(trustData.trustedDevices || []);
+      setAuthenticators(authData.authenticators || []);
+      setAuditLogs((auditData.logs || []).slice(0, 12));
       setRecoveryLeft(typeof mfaData.recoveryCodesRemaining === "number" ? mfaData.recoveryCodesRemaining : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load account security.");
@@ -72,7 +83,7 @@ export default function SecurityScreen() {
       method: "POST", body: JSON.stringify({ secretKey: setup?.secretKey || setup?.secret || setup?.manualEntryKey, otpCode: otp.trim() })
     }), "Two-factor authentication enabled.");
     if (res?.token) await saveSessionToken(res.token);
-    if (res?.trustToken) await saveDeviceTrustToken(res.trustToken);
+    if (res) await saveDeviceTrustToken(res.trustToken || null);
     if (res?.recoveryCodes?.length) { setCodes(res.recoveryCodes); setNotice("MFA enabled. Save these one-time recovery codes now; they will not be shown again."); }
     setSetup(null); setOtp("");
   }
@@ -83,6 +94,31 @@ export default function SecurityScreen() {
   async function generateRecoveryCodes() {
     const res = await action("recovery", () => apiRequest<{ recoveryCodes?: string[]; message?: string }>("/api/auth/mfa/recovery-codes/regenerate", { method: "POST" }), "Recovery codes regenerated.");
     if (res?.recoveryCodes?.length) setCodes(res.recoveryCodes);
+  }
+  async function beginBackupAuthenticator() {
+    const label = backupLabel.trim();
+    if (label.length < 2 || label.length > 50) { setError("Backup authenticator label must be 2–50 characters."); return; }
+    const res = await action("backup-setup", () => apiRequest<{ setup?: Setup }>("/api/auth/mfa/device/new-setup?label=" + encodeURIComponent(label)), "Backup authenticator setup loaded.");
+    if (res?.setup) { setBackupSetup(res.setup); setBackupOtp(""); }
+  }
+  async function enrollBackupAuthenticator() {
+    if (!backupSetup?.secretKey) { setError("Generate a new backup setup before verifying it."); return; }
+    if (!/^\\d{6}$/.test(backupOtp.trim())) { setError("Enter the 6-digit code for this backup authenticator."); return; }
+    const res = await action("backup-enroll", () => apiRequest<{ success?: boolean; message?: string }>("/api/auth/mfa/backup-authenticator/enroll", {
+      method: "POST",
+      body: JSON.stringify({ label: backupLabel.trim(), secretKey: backupSetup.secretKey, verificationCode: backupOtp.trim() })
+    }), "Backup authenticator enrolled.");
+    if (res?.success) { setBackupSetup(null); setBackupOtp(""); await load(false); }
+  }
+  function removeAuthenticator(authenticator: Authenticator) {
+    Alert.alert("Remove authenticator?", "Remove “" + (authenticator.label || authenticator.id) + "” from this account? This may affect recovery options.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: () => {
+        void action("remove-" + authenticator.id, () => apiRequest<{ success?: boolean }>("/api/auth/mfa/authenticators/remove", {
+          method: "POST", body: JSON.stringify({ authenticatorId: authenticator.id })
+        }), "Authenticator removed.");
+      }}
+    ]);
   }
 
   return <SafeAreaView style={s.safe}>
@@ -117,9 +153,29 @@ export default function SecurityScreen() {
         <Text style={s.help}>MFA status comes from /api/auth/mfa/status. Setup secrets are shown only when the server returns them.</Text>
         {!mfa?.mfaEnabled ? <Pressable disabled={!!saving} onPress={() => { void beginMfa(); }} style={[s.button, saving && s.disabled]}><Text style={s.buttonText}>{saving === "setup" ? "Loading setup…" : "Set up authenticator app"}</Text></Pressable> : <>
           <Text style={s.help}>Authenticators: {mfa?.authenticatorsCount ?? 0} · Recovery codes left: {recoveryLeft ?? mfa?.recoveryCodesRemaining ?? "—"}</Text>
-          <Pressable disabled={!!saving} onPress={() => { void generateRecoveryCodes(); }} style={[s.secondary, saving && s.disabled]}><Text style={s.secondaryText}>{saving === "recovery" ? "Generating…" : "Regenerate one-time recovery codes"}</Text></Pressable>
+          <Pressable disabled={!!saving} onPress={() => Alert.alert("Replace recovery codes?", "All previously generated recovery codes will stop working. Save the new codes in a private place before closing this screen.", [{ text: "Cancel", style: "cancel" }, { text: "Generate new codes", style: "destructive", onPress: () => { void generateRecoveryCodes(); } }])} style={[s.secondary, saving && s.disabled]}><Text style={s.secondaryText}>{saving === "recovery" ? "Generating…" : "Regenerate one-time recovery codes"}</Text></Pressable>
           <Pressable disabled={!!saving || !!mfa?.mfaMandatory} onPress={() => Alert.alert("Disable authenticator MFA?", "This removes authenticator protection and invalidates the account recovery codes. Only continue if you understand the security impact.", [{ text: "Cancel", style: "cancel" }, { text: "Disable MFA", style: "destructive", onPress: () => { void disableMfa(); } }])} style={[s.dangerButton, (!!saving || !!mfa?.mfaMandatory) && s.disabled]}><Text style={s.dangerText}>{saving === "disable" ? "Disabling…" : "Disable MFA (student accounts only)"}</Text></Pressable>
         </>}
+        {mfa?.mfaEnabled ? <View style={s.setupBox}>
+          <Text style={s.itemTitle}>Registered authenticator devices</Text>
+          <Text style={s.help}>Add a separate authenticator as a backup. The server validates its 6-digit code before saving the factor.</Text>
+          {authenticators.length === 0 ? <Text style={s.help}>No individual authenticator records were returned.</Text> : authenticators.map((auth) => <View key={auth.id} style={s.rowCard}>
+            <Text style={s.itemTitle}>{auth.label || "Authenticator"}</Text>
+            <Text style={s.help}>{auth.factorType || "TOTP"} · Added {fmt(auth.createdAt)} · Last used {fmt(auth.lastUsedAt || undefined)}</Text>
+            {auth.factorType !== "PRIMARY_TOTP" ? <Pressable disabled={!!saving} onPress={() => removeAuthenticator(auth)} style={s.secondary}><Text style={s.secondaryText}>Remove backup authenticator</Text></Pressable> : null}
+          </View>)}
+          <TextInput value={backupLabel} onChangeText={setBackupLabel} style={s.input} placeholder="Backup device label" placeholderTextColor="#718098" maxLength={50} />
+          <Pressable disabled={!!saving} onPress={() => { void beginBackupAuthenticator(); }} style={[s.secondary, !!saving && s.disabled]}><Text style={s.secondaryText}>{saving === "backup-setup" ? "Preparing…" : "Add backup authenticator"}</Text></Pressable>
+          {backupSetup ? <View style={s.setupBox}>
+            <Text style={s.itemTitle}>Backup setup · {backupLabel.trim()}</Text>
+            <Text style={s.help}>Add this new secret to a second authenticator app. This setup is distinct from your primary authenticator.</Text>
+            <Text selectable style={s.secret}>{backupSetup.formattedKey || backupSetup.secretKey || "Setup secret unavailable"}</Text>
+            {backupSetup.qrDataUrl ? <Image source={{ uri: backupSetup.qrDataUrl }} style={s.qr} resizeMode="contain" accessibilityLabel="Backup authenticator enrollment QR code" /> : null}
+            <TextInput value={backupOtp} onChangeText={(v) => setBackupOtp(v.replace(/\D/g, "").slice(0, 6))} keyboardType="number-pad" maxLength={6} style={s.input} placeholder="6-digit backup code" placeholderTextColor="#718098" />
+            <Pressable disabled={!!saving} onPress={() => { void enrollBackupAuthenticator(); }} style={[s.button, !!saving && s.disabled]}><Text style={s.buttonText}>{saving === "backup-enroll" ? "Verifying…" : "Verify & add backup"}</Text></Pressable>
+            <Pressable onPress={() => { setBackupSetup(null); setBackupOtp(""); }}><Text style={s.link}>Cancel backup setup</Text></Pressable>
+          </View> : null}
+        </View> : null}
         {setup ? <View style={s.setupBox}>
           <Text style={s.itemTitle}>1. Add this account to your authenticator</Text>
           <Text style={s.help}>Use your authenticator’s manual-entry option with the setup key returned by the server. Keep it private; do not send it to anyone.</Text>
@@ -143,7 +199,17 @@ export default function SecurityScreen() {
           <Text style={s.help}>Trusted: {fmt(device.trustedAt || device.trusted_at)} · Expires: {fmt(device.expiresAt || device.expires_at)}</Text>
           <Pressable disabled={!!saving} onPress={() => { const id = device.deviceId || device.device_id; if (id) void action("trust-" + id, () => apiRequest("/api/auth/mfa/trusted-devices/revoke", { method: "POST", body: JSON.stringify({ deviceId: id }) }), "Device trust revoked."); }} style={s.secondary}><Text style={s.secondaryText}>Revoke this device trust</Text></Pressable>
         </View>)}
-        <Pressable disabled={!!saving || trusted.length === 0} onPress={() => { void action("trust-all", () => apiRequest("/api/auth/mfa/trusted-devices/revoke-all", { method: "POST", body: JSON.stringify({}) }), "All trusted devices revoked."); }} style={[s.dangerButton, (saving || !trusted.length) && s.disabled]}><Text style={s.dangerText}>Revoke all trusted devices</Text></Pressable>
+        <Pressable disabled={!!saving || trusted.length === 0} onPress={() => Alert.alert("Revoke all trusted devices?", "Every saved trusted-device credential will be invalidated. Those devices may need to verify again.", [{ text: "Cancel", style: "cancel" }, { text: "Revoke all", style: "destructive", onPress: () => { void action("trust-all", () => apiRequest("/api/auth/mfa/trusted-devices/revoke-all", { method: "POST", body: JSON.stringify({}) }), "All trusted devices revoked."); } }])} style={[s.dangerButton, (saving || !trusted.length) && s.disabled]}><Text style={s.dangerText}>Revoke all trusted devices</Text></Pressable>
+      </View>
+
+      <View style={s.card}>
+        <Text style={s.cardTitle}>Recent security activity</Text>
+        <Text style={s.help}>These are your own server-recorded MFA/security audit events; admin-wide logs are not exposed in the student app.</Text>
+        {auditLogs.length === 0 ? <Text style={s.help}>No security events were returned.</Text> : auditLogs.map((log) => <View key={log.id} style={s.rowCard}>
+          <Text style={s.itemTitle}>{(log.eventType || log.action || "Security event").replaceAll("_", " ")}</Text>
+          <Text style={s.help}>{log.status || "—"} · {fmt(log.istTimestamp || log.createdAt)}</Text>
+          {log.details ? <Text style={s.help}>{log.details}</Text> : null}
+        </View>)}
       </View>
 
       <View style={s.card}>
