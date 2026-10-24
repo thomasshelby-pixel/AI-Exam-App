@@ -2,7 +2,7 @@ import { Link, router } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, ApiError, saveSessionToken } from "@/src/lib/api";
+import { apiRequest, ApiError, saveSessionToken, API_BASE_URL } from "@/src/lib/api";
 
 export default function SignInScreen() {
   const [email, setEmail] = useState("");
@@ -16,7 +16,7 @@ export default function SignInScreen() {
       setError("Enter your email and password to continue.");
       return;
     }
-    if (!process.env.EXPO_PUBLIC_API_BASE_URL?.trim()) {
+    if (!API_BASE_URL) {
       setError("App setup is incomplete: the existing AI-Exam API base URL has not been configured.");
       return;
     }
