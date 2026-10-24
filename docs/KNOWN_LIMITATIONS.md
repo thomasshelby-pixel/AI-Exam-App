@@ -1,21 +1,22 @@
-# Current release gaps
+# Student App release gaps
 
-## Implemented in the student app
-- Student email/password sign-in with a server-issued bearer token stored in SecureStore; admin roles are rejected from the student app.
-- Student registration with required CA course and ICAI registration number, email OTP verification, resend-code action, and authenticator-based TOTP MFA challenge.
-- Dashboard and edits to fields supported by the active profile API.
-- Answer-sheet PDF submission with disclaimer acknowledgement, evaluation history/details with automatic status refresh, and authenticated checked-copy/report PDF downloads.
-- Native in-app notification inbox with server-backed unread count, mark-one-read and mark-all-read actions, plus server-backed notification preference toggles.
-- Credit balance, monthly free allowance, paid-credit balance and recent ledger display; paid-credit checkout continues through the existing website.
-- Notification preference toggles saved by the server.
-- Self-service student account deletion through the server's provider-aware identity verification, explicit DELETE confirmation and session clearing.
+## Implemented / integrated screens
+- Student email/password login, email-OTP registration, TOTP challenge, one-time recovery-code fallback, forgot/reset password and protected server session.
+- Persistent installation identifier on API requests to align with existing device-session and trial-abuse controls.
+- Student dashboard, profile/avatar, password change, active-session list/revoke, MFA status/setup, recovery-code regeneration and trusted-device revocation.
+- Native paper specification, material availability verification, PDF/image submission, disclaimer, history/status polling, checked-copy/report downloads and review/recheck requests.
+- Native Razorpay purchase using server-created order plus server-side signature verification; no local credits or permanent-access grants.
+- Purchased credit lot/expiry overview, notifications/preferences, institute enrollment/materials/tests, study planner, personal examiner profile, MCQ Arena, promo/referral, support tickets and student reviews.
 
-## Remaining release gates
-- Run a clean SDK 58 dependency install, Expo dependency compatibility check, Expo Doctor, TypeScript typecheck, Android bundle export and release APK build in CI.
-- Complete live API smoke tests with a test student: login, registration OTP, TOTP MFA, profile update, durable notification read state, PDF submission, pending/completed status, checked-copy/report downloads, session expiry and refreshed credit balance.
-- The current profile endpoint does not expose a canonical exam-attempt selection API. Do not let the app write arbitrary attempt IDs; add that only when the backend exposes and validates the canonical contract.
-- Submission sends PDF content as base64 JSON and applies a client-side 4 MB limit. Verify server-side limits and eligibility/material gates before release.
-- Native Google/Apple OAuth and embedded Razorpay checkout are not part of this build. Account payments are opened on the existing website; the backend remains the source of truth for payment verification and credits.
-- Do not label the app release-ready until CI and real-device/API smoke tests pass.
+## Release/security gates (do not mark complete until verified)
+- Confirm production has an independent, high-entropy JWT_SECRET environment variable. The inspected backend source contains a hard-coded fallback; source inspection cannot confirm whether production currently uses it. Do not deploy with the fallback.
+- Test device-limit enforcement, MFA enrollment/login/recovery, session revocation, native trusted-device behavior, payment cancellation/idempotency, institute membership scoping and recheck ownership on a real Android device.
+- Native trusted-device cookies do not necessarily behave exactly like browser HttpOnly-cookie trust; the screen reads and revokes server state, but end-to-end native trust testing remains necessary.
+- Mobile uploads are capped at 30 MB; true 50 MB source file support needs multipart/streaming upload and hosting-limit review.
+- Profile API does not expose a validated canonical exam-attempt update contract; the profile attempt field stays informational/read-only.
+- Google sign-in endpoints currently return GOOGLE_SIGNIN_DISCONTINUED; native Google OAuth is intentionally not presented as working.
+- MCQ Arena and planner screens respect server feature and course gates. A screen being present does not mean the account has access to the feature.
+- Only CA answer-sheet evaluation is supported. CS/CMA are Coming Soon.
+- The Student App is substantially expanded but is not claimed to be a perfect copy of every website workflow. CI and end-to-end smoke tests are release gates.
 
-The website/backend repository remains unchanged by this mobile-app work.
+The production website/backend repository is unchanged by these mobile changes.

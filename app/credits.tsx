@@ -25,6 +25,8 @@ type CreditSummary = {
   canEvaluate?: boolean;
   statusMessage?: string;
 };
+type CreditLot = { id:string; orderId?:string|null; paymentId?:string|null; creditsPurchased:number; creditsRemaining:number; validFrom?:string; expiresAt?:string; purchaseDate?:string; status?:string; isExpired?:boolean; isExpiringSoon?:boolean; daysRemaining?:number };
+type LotResponse = { success?:boolean; creditStatus?:{ totalValidCredits?:number; expiringSoonCredits?:number; earliestExpiryDate?:string|null; lots?:CreditLot[] } };
 type CreditLedgerItem = {
   id: string;
   amount?: number;
@@ -108,6 +110,7 @@ function normalizeLevel(value: unknown): Level | null {
 
 export default function CreditsScreen() {
   const [data, setData] = useState<CreditsResponse | null>(null);
+  const [lotStatus, setLotStatus] = useState<LotResponse["creditStatus"] | null>(null);
   const [course, setCourse] = useState<Level | null>(null);
   const [isPermanent, setIsPermanent] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -125,8 +128,12 @@ export default function CreditsScreen() {
     if (initial) setBusy(true);
     setError("");
     try {
-      const response = await apiRequest<CreditsResponse>("/api/student/credits");
+      const [response, lots] = await Promise.all([
+        apiRequest<CreditsResponse>("/api/student/credits"),
+        apiRequest<LotResponse>("/api/student/credit-lots").catch(() => null),
+      ]);
       setData(response);
+      setLotStatus(lots?.creditStatus || null);
       setIsPermanent(Boolean(response.entitlement?.hasPermanentFreeAccess));
 
       const me = await apiRequest<AuthMeResponse>("/api/auth/me").catch(() => null);
@@ -344,6 +351,23 @@ export default function CreditsScreen() {
               </>
             ) : null}
 
+            <Text style={s.section}>Purchased credit lots & expiry</Text>
+            <View style={s.card}>
+              <Text style={s.cardTitle}>Credit expiry overview</Text>
+              <Text style={s.statDescription}>Valid purchased credits: {lotStatus?.totalValidCredits ?? paid} · Expiring within 30 days: {lotStatus?.expiringSoonCredits ?? 0}</Text>
+              <Text style={s.statDescription}>Earliest expiry: {lotStatus?.earliestExpiryDate ? formatDate(lotStatus.earliestExpiryDate) : "No expiry date returned"}</Text>
+            </View>
+            {lotStatus?.lots?.length ? lotStatus.lots.map((lot) => (
+              <View key={lot.id} style={s.ledgerCard}>
+                <View style={s.ledgerHead}>
+                  <Text style={s.cardTitle}>{lot.status || "CREDIT LOT"} · {lot.creditsRemaining} remaining</Text>
+                  <Text style={s.ledgerAmount}>{lot.isExpired ? "Expired" : lot.isExpiringSoon ? "Expiring soon" : (lot.daysRemaining !== undefined ? lot.daysRemaining + " days" : "—")}</Text>
+                </View>
+                <Text style={s.statDescription}>Purchased {lot.creditsPurchased} · Valid from {formatDate(lot.validFrom)} · Expires {formatDate(lot.expiresAt)}</Text>
+                {lot.orderId ? <Text style={s.ledgerId}>Order: {lot.orderId}</Text> : null}
+                {lot.paymentId ? <Text style={s.ledgerId}>Payment: {lot.paymentId}</Text> : null}
+              </View>
+            )) : <Text style={s.sub}>No purchased credit lots were returned by the server.</Text>}
             <Text style={s.section}>Recent credit activity</Text>
             {data.ledger?.length ? data.ledger.slice(0, 25).map((item) => (
               <View key={item.id} style={s.ledgerCard}>

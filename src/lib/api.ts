@@ -5,6 +5,24 @@ const API_BASE_URL = ((process.env.EXPO_PUBLIC_API_BASE_URL ?? "").trim() || DEF
 export { API_BASE_URL };
 const TOKEN_KEY = "ai_exam_session_token";
 
+const DEVICE_ID_KEY = "ca_exam_checker_device_id";
+const DEVICE_TRUST_TOKEN_KEY = "ca_exam_checker_device_trust_token";
+
+/**
+ * Stable random installation identifier used only for the backend's device-session
+ * and free-trial-abuse controls. It is not an authentication credential.
+ */
+export async function getOrCreateDeviceId(): Promise<string> {
+  const current = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+  if (current && /^[a-zA-Z0-9_-]{24,160}$/.test(current)) return current;
+  const generated = "mob_" + Array.from({ length: 6 }, () =>
+    Math.random().toString(36).slice(2, 12)
+  ).join("");
+  await SecureStore.setItemAsync(DEVICE_ID_KEY, generated);
+  return generated;
+}
+
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -23,8 +41,19 @@ export async function saveSessionToken(token: string) {
   await SecureStore.setItemAsync(TOKEN_KEY, token);
 }
 
+export async function saveDeviceTrustToken(token?: string | null) {
+  if (token && token.trim()) {
+    await SecureStore.setItemAsync(DEVICE_TRUST_TOKEN_KEY, token.trim());
+  } else {
+    await SecureStore.deleteItemAsync(DEVICE_TRUST_TOKEN_KEY);
+  }
+}
+
 export async function clearSession() {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await Promise.all([
+    SecureStore.deleteItemAsync(TOKEN_KEY),
+    SecureStore.deleteItemAsync(DEVICE_TRUST_TOKEN_KEY),
+  ]);
 }
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -33,6 +62,10 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
 
   const token = await SecureStore.getItemAsync(TOKEN_KEY);
   const headers = new Headers(init.headers);
+  const deviceId = await getOrCreateDeviceId();
+  headers.set("X-Device-Id", deviceId);
+  const deviceTrustToken = await SecureStore.getItemAsync(DEVICE_TRUST_TOKEN_KEY);
+  if (deviceTrustToken) headers.set("X-Device-Trust-Token", deviceTrustToken);
   headers.set("Accept", "application/json");
   if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -87,7 +120,14 @@ export async function downloadAndShareAuthenticatedFile(path: string, filename: 
   const Sharing = await import("expo-sharing");
   if (!FileSystem.documentDirectory) throw new Error("This device does not provide a document storage location.");
   const destination = `${FileSystem.documentDirectory}${filename}`;
-  const result = await FileSystem.downloadAsync(`${API_BASE_URL}${path}`, destination, { headers: { Accept: "application/pdf", Authorization: `Bearer ${token}` } });
+  const downloadHeaders: Record<string, string> = {
+    Accept: "application/pdf",
+    Authorization: `Bearer ${token}`,
+    "X-Device-Id": await getOrCreateDeviceId(),
+  };
+  const deviceTrustToken = await SecureStore.getItemAsync(DEVICE_TRUST_TOKEN_KEY);
+  if (deviceTrustToken) downloadHeaders["X-Device-Trust-Token"] = deviceTrustToken;
+  const result = await FileSystem.downloadAsync(`${API_BASE_URL}${path}`, destination, { headers: downloadHeaders });
   if (result.status < 200 || result.status >= 300) {
     await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
     if (result.status === 401) await clearSession();

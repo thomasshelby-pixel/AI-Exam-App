@@ -1,30 +1,29 @@
-# CA Exam Checker AI — Student App
+ # CA Exam Checker AI — Student App
 
-Android-first student companion for the existing CA Exam Checker AI account. The production website/backend remains the source of truth and is not modified by this repository.
+Android-first native companion to the existing CA Exam Checker AI student account. The production website/backend remains the source of truth; this repository does not modify the production backend.
 
-## Features
-- Student email/password sign-in, registration with email OTP and authenticator TOTP MFA challenge.
-- Dashboard and supported profile updates.
-- Course-aware paper specification matching the website: CA level, group, canonical subject/paper key, MTP/PYQ/model-paper type, official MTP series, server-provided exam attempts, evaluator strictness and material availability pre-check.
-- PDF/image answer-sheet submission with a 30 MB client limit. The current API accepts base64 in JSON and has a 50 MB JSON body limit, so the app deliberately stays below the nominal website 50 MB file picker limit until a streaming upload transport is implemented.
-- Native in-app Razorpay checkout for combo/custom evaluation credits, using server-created orders and server-side payment signature verification. Prices/credits are not trusted or granted by the client.
-- Credits and recent ledger; permanent evaluation access is displayed only when confirmed by the authenticated server.
-- Evaluation history/details with pending-status auto-refresh and authenticated checked-copy/report PDF downloads.
-- Notification inbox, unread count, mark-one-read and mark-all-read, plus server-backed email/in-app notification preferences.
-- Forgot password, profile settings, and secure self-service account deletion using the account's required password, email OTP or registered-email verification method.
+## Student-facing flows integrated
+- Email/password student sign-in, email-OTP registration, authenticator challenge with one-time recovery-code fallback, forgot/reset password, session restore and logout.
+- Persistent installation ID sent to the server for its existing device-session and free-trial controls.
+- Student profile including HTTPS avatar URL, CA course, and ICAI registration completion.
+- Account security centre: active-session list/revoke, TOTP enrollment/status, recovery-code regeneration, trusted-device revocation and password change.
+- Screenshot-aligned answer-sheet paper specification: CA course, group, official subject keys, MTP/PYQ/model test, MTP series, server-sourced exam attempts, checking mode and reference-material availability.
+- PDF/image answer-sheet submission, disclaimer acknowledgement, server eligibility/material checks, evaluation history/details/status polling, checked-copy/report downloads and recheck requests.
+- Native Razorpay checkout for course combos/custom credits through server-created orders and server-side payment signature verification. Permanent access is read from the server; app never grants credits or entitlement locally.
+- Credit balance/ledger and purchased-credit lot expiry.
+- Notifications/read state/preferences; institute join/materials/tests submissions; AI study planner; personal examiner profile; MCQ Arena; promo/referral redemption; support tickets and student review.
+- Student-only interface. Institute Admin and Super Admin are intended to be separate apps, not roles in this app.
 
-## Stack
+## Stack and local run
 - Expo SDK 58, React Native 0.88, React 19.3 and TypeScript 6.
-- API origin defaults to https://caexamcheckerai.com; EXPO_PUBLIC_API_BASE_URL can override it for staging.
-- Session tokens are stored using SecureStore. Sensitive account, evaluation, payment, notification and credit writes go through authenticated server endpoints.
+- API defaults to https://caexamcheckerai.com; staging may use EXPO_PUBLIC_API_BASE_URL.
+- Session token and mobile installation ID use Expo SecureStore.
+- Run in PowerShell: npm.cmd install, npx.cmd expo install --check, and npx.cmd expo start -c.
 
-## Local development (PowerShell)
-    npm.cmd install
-    npx.cmd expo install --check
-    npx.cmd expo start -c
-
-## Native payment note
-Razorpay's React Native SDK is a native module. Use the standalone APK (or a custom development build that includes the module); Expo Go does not include native Razorpay. GitHub Actions runs a standalone Android release build and stores the APK artifact for 14 days when the job succeeds. It is not a Play Store release.
-
-## Verification / remaining parity
-Automated checks and a built APK must pass before describing the app as release-ready. Test real test-key checkout, payment cancellation, verification, duplicate callbacks/idempotent fulfilment, permanent-access account behavior, OTP/TOTP, notification persistence, profile course change, material availability, 30 MB uploads, evaluation polling and secured PDF downloads on a real Android device. Native Google OAuth, MCQ Arena, the study planner and institute-specific workflows are not yet full native screens; do not assume the mobile app is fully feature-equivalent to the website until those gaps are separately implemented and tested.
+## Important platform and parity notes
+- Native Razorpay requires a standalone APK or custom development build; Expo Go does not include this native module.
+- The app caps source files at 30 MB because uploads use base64 JSON and the inspected server JSON parser is limited to 50 MB. True larger upload support needs multipart/streaming transport plus hosting payload-limit checks.
+- Google sign-in endpoints currently return GOOGLE_SIGNIN_DISCONTINUED from the backend. Do not show a working Google sign-in option until the website/backend restores and verifies that flow.
+- MCQ Arena, planner and evaluation routes may be restricted by server feature/access controls; the mobile client respects those decisions.
+- CS/CMA answer-sheet checking and native mobile Institute/Super Admin consoles are not implemented in this Student App.
+- Automated checks do not replace test-key checkout, MFA/device tests and other smoke tests on a real Android device.

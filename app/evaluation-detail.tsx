@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, downloadAndShareAuthenticatedFile } from "@/src/lib/api";
+
+type RecheckRequest = { id?: string; request_type?: string; requestType?: string; question_number?: string; questionNumber?: string; reason?: string; status?: string; created_at?: string; createdAt?: string };
 
 type Detail = {
   id: string;
@@ -28,6 +30,12 @@ export default function EvaluationDetailScreen() {
   const [busy, setBusy] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
+  const [rechecks, setRechecks] = useState<RecheckRequest[]>([]);
+  const [recheckType, setRecheckType] = useState<"SPECIFIC_QUESTION" | "COMPLETE_PAPER">("SPECIFIC_QUESTION");
+  const [questionNumber, setQuestionNumber] = useState("");
+  const [recheckReason, setRecheckReason] = useState("");
+  const [rechecking, setRechecking] = useState(false);
+  const [recheckNotice, setRecheckNotice] = useState("");
 
   const load = useCallback(async () => {
     if (!id) {
@@ -37,10 +45,12 @@ export default function EvaluationDetailScreen() {
     }
     setError("");
     try {
-      const response = await apiRequest<{ evaluation?: Detail }>(
-        `/api/student/evaluations/${encodeURIComponent(id)}`
-      );
+      const [response, recheckResponse] = await Promise.all([
+        apiRequest<{ evaluation?: Detail }>(`/api/student/evaluations/${encodeURIComponent(id)}`),
+        apiRequest<{ requests?: RecheckRequest[] }>(`/api/student/evaluations/${encodeURIComponent(id)}/recheck`).catch(() => ({ requests: [] as RecheckRequest[] })),
+      ]);
       setData(response.evaluation || null);
+      setRechecks(recheckResponse.requests || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load evaluation details.");
     } finally {
@@ -74,6 +84,36 @@ export default function EvaluationDetailScreen() {
     } finally {
       setDownloading(false);
     }
+  }
+
+  async function submitRecheck() {
+    if (!id) return;
+    if (recheckType === "SPECIFIC_QUESTION" && !questionNumber.trim()) {
+      setError("Enter the question number you want reviewed.");
+      return;
+    }
+    if (recheckReason.trim().length < 10) {
+      setError("Explain the reason for review in at least 10 characters.");
+      return;
+    }
+    setRechecking(true); setError(""); setRecheckNotice("");
+    try {
+      const result = await apiRequest<{ success?: boolean; message?: string }>(`/api/student/evaluations/${encodeURIComponent(id)}/recheck`, {
+        method: "POST",
+        body: JSON.stringify({
+          requestType: recheckType,
+          questionNumber: recheckType === "COMPLETE_PAPER" ? "ALL" : questionNumber.trim(),
+          reason: recheckReason.trim(),
+          studentNotes: recheckReason.trim(),
+        }),
+      });
+      if (result.success === false) throw new Error(result.message || "The server did not accept the review request.");
+      setRecheckNotice(result.message || "Review request submitted. No evaluation credits were deducted.");
+      setQuestionNumber(""); setRecheckReason("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not submit recheck request.");
+    } finally { setRechecking(false); }
   }
 
   return (
@@ -119,6 +159,21 @@ export default function EvaluationDetailScreen() {
               </>
             ) : null}
             <Text style={s.note}>PDF downloads use your authenticated session and existing student endpoints. Availability remains subject to server permissions, disclaimer and evaluation status.</Text>
+            {data.status === "COMPLETED" ? (
+              <View style={s.recheckCard}>
+                <Text style={s.cardTitle}>Request a recheck</Text>
+                <Text style={s.note}>Ask for a question-specific review or a review of the full paper. The server checks ownership, completed status and duplicate pending requests; no credits are deducted for a request.</Text>
+                <View style={s.recheckOptions}>
+                  <Pressable onPress={() => setRecheckType("SPECIFIC_QUESTION")} style={[s.recheckOption, recheckType === "SPECIFIC_QUESTION" && s.recheckSelected]}><Text style={[s.recheckOptionText, recheckType === "SPECIFIC_QUESTION" && s.recheckSelectedText]}>Specific question</Text></Pressable>
+                  <Pressable onPress={() => setRecheckType("COMPLETE_PAPER")} style={[s.recheckOption, recheckType === "COMPLETE_PAPER" && s.recheckSelected]}><Text style={[s.recheckOptionText, recheckType === "COMPLETE_PAPER" && s.recheckSelectedText]}>Complete paper</Text></Pressable>
+                </View>
+                {recheckType === "SPECIFIC_QUESTION" ? <TextInput value={questionNumber} onChangeText={setQuestionNumber} style={s.recheckInput} placeholder="Question number (e.g. 3(b))" placeholderTextColor="#718098" /> : null}
+                <TextInput value={recheckReason} onChangeText={setRecheckReason} style={[s.recheckInput, s.recheckMultiline]} multiline textAlignVertical="top" maxLength={500} placeholder="Explain what you think should be reviewed (10–500 characters)." placeholderTextColor="#718098" />
+                {recheckNotice ? <Text style={s.recheckSuccess}>{recheckNotice}</Text> : null}
+                <Pressable disabled={rechecking} onPress={() => { void submitRecheck(); }} style={[s.button, rechecking && { opacity: 0.6 }]}><Text style={s.buttonText}>{rechecking ? "Submitting…" : "Submit recheck request"}</Text></Pressable>
+                {rechecks.length ? <View style={s.recheckHistory}><Text style={s.cardTitle}>Request history</Text>{rechecks.map((request, i) => <View key={request.id || String(i)} style={s.recheckItem}><Text style={s.recheckOptionText}>{request.request_type || request.requestType || "Review"} · {request.question_number || request.questionNumber || "ALL"}</Text><Text style={s.note}>Status: {request.status || "—"} · {request.created_at || request.createdAt ? new Date(request.created_at || request.createdAt || "").toLocaleDateString() : "Date unavailable"}</Text>{request.reason ? <Text style={s.note}>{request.reason}</Text> : null}</View>)}</View> : null}
+              </View>
+            ) : null}
           </>
         ) : null}
       </ScrollView>
@@ -142,5 +197,17 @@ const s = StyleSheet.create({
   secondaryButton: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: "#3A4966", alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
   secondaryButtonText: { color: "#C7F36B", fontWeight: "800", fontSize: 13 },
   note: { color: "#718098", fontSize: 11, lineHeight: 17 },
+  recheckCard: { backgroundColor: "#11192A", borderColor: "#263149", borderWidth: 1, borderRadius: 16, padding: 15, gap: 11 },
+  cardTitle: { color: "#F1F4FA", fontSize: 14, fontWeight: "900" },
+  recheckOptions: { flexDirection: "row", gap: 8 },
+  recheckOption: { flex: 1, borderWidth: 1, borderColor: "#34425D", borderRadius: 10, padding: 10, alignItems: "center" },
+  recheckSelected: { backgroundColor: "#172B4D", borderColor: "#3B82F6" },
+  recheckOptionText: { color: "#AAB4C7", fontSize: 11, fontWeight: "800" },
+  recheckSelectedText: { color: "#93C5FD" },
+  recheckInput: { minHeight: 46, borderRadius: 11, borderWidth: 1, borderColor: "#34425D", backgroundColor: "#0B1020", paddingHorizontal: 12, paddingVertical: 10, color: "#F7F8FC", fontSize: 12 },
+  recheckMultiline: { minHeight: 100, paddingTop: 12 },
+  recheckSuccess: { color: "#C7F36B", fontSize: 11, lineHeight: 17 },
+  recheckHistory: { gap: 8, borderTopWidth: 1, borderTopColor: "#27354C", paddingTop: 10 },
+  recheckItem: { borderRadius: 10, backgroundColor: "#0D1424", padding: 10, gap: 5 },
   error: { color: "#FFBABA", fontSize: 13 },
 });
