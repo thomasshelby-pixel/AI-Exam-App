@@ -18,7 +18,7 @@ export default function SubmitCopyScreen() {
  const [materialType,setMaterialType]=useState<typeof materials[number]>("MTP");
  const [subjectName,setSubjectName]=useState("");
  const [subjectKey,setSubjectKey]=useState("");
- const [attempt,setAttempt]=useState("MAY 2027");
+ const [attempt,setAttempt]=useState("");
  const [mtpSeries,setMtpSeries]=useState("1");
  const [checkingMode,setCheckingMode]=useState<typeof modes[number]>("standard");
  const [picked,setPicked]=useState<Picked|null>(null);
@@ -61,6 +61,7 @@ export default function SubmitCopyScreen() {
    if(!ack){setError("Please acknowledge the evaluation disclaimer before continuing.");return;}
    if(!picked){setError("Choose your answer-sheet PDF first.");return;}
    if(!subjectName.trim()||!subjectKey.trim()){setError("Enter the exact subject name and subject key used by CA Exam Checker.");return;}
+   if(!attempt.trim()){setError("Enter your actual exam attempt (for example, MAY 2027) before submitting.");return;}
    if(materialType==="MTP"&& !["1","2"].includes(mtpSeries)){setError("Choose MTP Series 1 or 2.");return;}
    setBusy(true);
    try {
@@ -85,7 +86,7 @@ export default function SubmitCopyScreen() {
  {materialType==="MTP"?<><Text style={s.label}>MTP SERIES</Text><View style={s.chips}>{["1","2"].map(x=><Pressable key={x} onPress={()=>setMtpSeries(x)} style={[s.chip,mtpSeries===x&&s.selected]}><Text style={[s.chipText,mtpSeries===x&&s.selectedText]}>Series {x}</Text></Pressable>)}</View></>:null}
  <Text style={s.label}>SUBJECT NAME</Text><TextInput value={subjectName} onChangeText={setSubjectName} placeholder="e.g. Corporate and Other Laws" placeholderTextColor="#66738A" style={s.input}/>
  <Text style={s.label}>SUBJECT KEY</Text><TextInput value={subjectKey} onChangeText={setSubjectKey} placeholder="Exact subject key from website" placeholderTextColor="#66738A" autoCapitalize="characters" style={s.input}/>
- <Text style={s.label}>EXAM ATTEMPT</Text><TextInput value={attempt} onChangeText={setAttempt} placeholder="e.g. MAY 2027" placeholderTextColor="#66738A" style={s.input}/>
+ <Text style={s.label}>EXAM ATTEMPT</Text><TextInput value={attempt} onChangeText={setAttempt} autoCapitalize="characters" placeholder="Enter your actual attempt, e.g. MAY 2027" placeholderTextColor="#66738A" style={s.input}/><Text style={s.courseHelp}>This value is saved with your submission. Check it carefully before evaluation.</Text>
  <Text style={s.label}>CHECKING MODE</Text><View style={s.chips}>{modes.map(x=><Pressable key={x} onPress={()=>setCheckingMode(x)} style={[s.chip,checkingMode===x&&s.selected]}><Text style={[s.chipText,checkingMode===x&&s.selectedText]}>{x.toUpperCase()}</Text></Pressable>)}</View>
  <Pressable onPress={chooseFile} style={s.file}><Text style={s.fileIcon}>📄</Text><View style={{flex:1,gap:5}}><Text style={s.fileTitle}>{picked?picked.name:"Choose answer-sheet PDF"}</Text><Text style={s.fileSub}>{picked?((picked.size||0)/1024/1024).toFixed(2)+" MB":"PDF only · maximum 4 MB"}</Text></View><Text style={s.choose}>{picked?"Change":"Browse"}</Text></Pressable>
  <Pressable onPress={()=>setAck(!ack)} style={s.ackRow}><View style={[s.checkbox,ack&&s.checkboxOn]}>{ack?<Text style={s.check}>✓</Text>:null}</View><Text style={s.ackText}>I understand that evaluation is based on the official material available to the platform and results are subject to the displayed evaluation disclaimer.</Text></Pressable>
