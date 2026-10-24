@@ -52,12 +52,26 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     try { payload = JSON.parse(raw); } catch { payload = raw; }
   }
   if (!response.ok) {
-    const message = typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
-      ? payload.error
-      : response.status === 401 ? "Your session has expired. Please sign in again."
+    const responseObject = typeof payload === "object" && payload !== null ? payload as Record<string, unknown> : null;
+    const serverMessage = typeof responseObject?.error === "string" ? responseObject.error : null;
+    const serverCode = typeof responseObject?.code === "string" ? responseObject.code : null;
+
+    // A 401 can mean failed re-authentication (e.g. an incorrect password) rather
+    // than an expired bearer token. Only wipe the session for known auth/session
+    // failures so account recovery/deletion verification can be retried safely.
+    const invalidSession = response.status === 401 && (
+      serverCode === "SESSION_EXPIRED" ||
+      serverCode === "SESSION_REVOKED" ||
+      serverMessage === "Session expired or invalid token. Please log in again." ||
+      serverMessage === "User account not found."
+    );
+
+    const message = serverMessage
+      ?? (response.status === 401 ? "Your session may have expired. Please sign in again if the problem continues."
       : response.status === 403 ? "You do not have permission to access this feature."
-      : `The server returned an error (${response.status}).`;
-    if (response.status === 401) await clearSession();
+      : `The server returned an error (${response.status}).`);
+
+    if (invalidSession) await clearSession();
     throw new ApiError(message, response.status);
   }
   return payload as T;
