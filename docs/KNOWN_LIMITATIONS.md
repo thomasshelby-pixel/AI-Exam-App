@@ -5,7 +5,7 @@
 - Student registration with required CA course and ICAI registration number, email OTP verification, resend-code action, and authenticator-based TOTP MFA challenge.
 - Dashboard and edits to fields supported by the active profile API.
 - Answer-sheet PDF submission with disclaimer acknowledgement, evaluation history/details with automatic status refresh, and authenticated checked-copy/report PDF downloads.
-- Native in-app notification inbox with server-backed unread count, mark-one-read and mark-all-read actions.
+- Native in-app notification inbox with server-backed unread count, mark-one-read and mark-all-read actions, plus server-backed notification preference toggles.
 - Credit balance, monthly free allowance, paid-credit balance and recent ledger display; paid-credit checkout continues through the existing website.
 
 ## Remaining release gates
