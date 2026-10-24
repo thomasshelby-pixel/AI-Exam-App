@@ -13,7 +13,7 @@
 - Login, registration email OTP, authenticator TOTP challenge, logout and session expiry.
 - Student dashboard and supported profile edits.
 - PDF submission, disclaimer acknowledgement, evaluation list/detail with automatic polling, authenticated PDF downloads.
-- Notification inbox with server-backed unread count, mark-one-read and mark-all-read.
+- Notification inbox with server-backed unread count, mark-one-read and mark-all-read; email, marketing email and in-app preference toggles.
 - Credit balance/allowance/ledger screen; checkout opens the existing website.
 
 ## Still to verify
