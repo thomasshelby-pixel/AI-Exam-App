@@ -90,7 +90,7 @@ export default function SubmitCopyScreen() {
  <Pressable onPress={chooseFile} style={s.file}><Text style={s.fileIcon}>📄</Text><View style={{flex:1,gap:5}}><Text style={s.fileTitle}>{picked?picked.name:"Choose answer-sheet PDF"}</Text><Text style={s.fileSub}>{picked?((picked.size||0)/1024/1024).toFixed(2)+" MB":"PDF only · maximum 4 MB"}</Text></View><Text style={s.choose}>{picked?"Change":"Browse"}</Text></Pressable>
  <Pressable onPress={()=>setAck(!ack)} style={s.ackRow}><View style={[s.checkbox,ack&&s.checkboxOn]}>{ack?<Text style={s.check}>✓</Text>:null}</View><Text style={s.ackText}>I understand that evaluation is based on the official material available to the platform and results are subject to the displayed evaluation disclaimer.</Text></Pressable>
  {error?<Text accessibilityRole="alert" style={s.error}>{error}</Text>:null}{message?<Text style={s.success}>{message}</Text>:null}
- <Pressable disabled={busy} onPress={submit} style={[s.button,busy&&{opacity:.7}]}>{busy?<ActivityIndicator color="#101827"/>:<Text style={s.buttonText}>Submit for evaluation  →</Text>}</Pressable>
+ <Pressable disabled={busy||courseLoading||Boolean(courseLoadError)} onPress={submit} style={[s.button,(busy||courseLoading||Boolean(courseLoadError))&&{opacity:.55}]}>{busy||courseLoading?<ActivityIndicator color="#101827"/>:<Text style={s.buttonText}>Submit for evaluation  →</Text>}</Pressable>
  <Text style={s.foot}>Submission is subject to server-side eligibility, reference-material availability, credit checks and disclaimer validation.</Text>
  </ScrollView></SafeAreaView>;
 }
