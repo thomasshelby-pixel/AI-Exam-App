@@ -1,6 +1,7 @@
 import { Link } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { API_BASE_URL } from "@/src/lib/api";
 
 const features = [
   { icon: "📚", title: "Study dashboard", detail: "Your CA course, exam attempt and study progress" },
@@ -10,7 +11,7 @@ const features = [
 ];
 
 export default function HomeScreen() {
-  const apiConfigured = Boolean(process.env.EXPO_PUBLIC_API_BASE_URL?.trim());
+  const apiConfigured = Boolean(API_BASE_URL);
 
   return (
     <SafeAreaView style={styles.safe}>
