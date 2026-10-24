@@ -1,7 +1,8 @@
-import { Link } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Link, router } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { API_BASE_URL } from "@/src/lib/api";
+import { API_BASE_URL, apiRequest, clearSession, getSessionToken } from "@/src/lib/api";
 
 const features = [
   { icon: "📚", title: "Study dashboard", detail: "Your CA course, exam attempt and study progress" },
@@ -12,10 +13,49 @@ const features = [
 
 export default function HomeScreen() {
   const apiConfigured = Boolean(API_BASE_URL);
+  const [restoringSession, setRestoringSession] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function restoreSession() {
+      try {
+        const token = await getSessionToken();
+        if (!token) {
+          if (active) setRestoringSession(false);
+          return;
+        }
+
+        const result = await apiRequest<{
+          user?: { role?: string; status?: string; requiresProfileCompletion?: boolean } | null;
+        }>("/api/auth/me");
+
+        if (!active) return;
+        if (result.user?.role === "STUDENT" && result.user.status !== "SUSPENDED") {
+          router.replace(result.user.requiresProfileCompletion ? "/profile" : "/dashboard");
+          return;
+        }
+
+        await clearSession();
+        if (active) setRestoringSession(false);
+      } catch {
+        // Preserve a possibly valid session during a network outage; let the student retry sign-in.
+        if (active) setRestoringSession(false);
+      }
+    }
+
+    void restoreSession();
+    return () => { active = false; };
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
+      {restoringSession ? (
+        <View style={styles.restoring}>
+          <View style={styles.logo}><Text style={styles.logoText}>AI</Text></View>
+          <ActivityIndicator color="#C7F36B" size="large" />
+          <Text style={styles.restoringText}>Checking your secure session…</Text>
+        </View>
+      ) : <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.topline}>
           <View style={styles.logo}><Text style={styles.logoText}>AI</Text></View>
           <Text style={styles.brand}>CA EXAM CHECKER</Text>
@@ -46,13 +86,15 @@ export default function HomeScreen() {
           ))}
         </View>
         <View style={styles.footer}><Text style={styles.footerText}>AI EXAM APP · MOBILE FOUNDATION</Text><Text style={styles.footerSub}>Your results stay governed by the existing evaluation system.</Text></View>
-      </ScrollView>
+      </ScrollView>}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#0B1020" },
+  restoring: { flex: 1, alignItems: "center", justifyContent: "center", gap: 20, padding: 24 },
+  restoringText: { color: "#AAB4C7", fontSize: 13, fontWeight: "600" },
   content: { padding: 22, paddingBottom: 42 },
   topline: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 38 },
   logo: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#C7F36B", alignItems: "center", justifyContent: "center" },
