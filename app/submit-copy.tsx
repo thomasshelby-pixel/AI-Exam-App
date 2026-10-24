@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { router } from "expo-router";
+import { useCallback, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -44,7 +44,7 @@ export default function SubmitCopyScreen() {
    }
  }, []);
 
- useEffect(() => { void loadCurrentCourse(); }, [loadCurrentCourse]);
+ useFocusEffect(useCallback(() => { void loadCurrentCourse(); }, [loadCurrentCourse]));
 
  async function chooseFile() {
    setError(""); setMessage("");
