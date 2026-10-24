@@ -1,6 +1,8 @@
 import * as SecureStore from "expo-secure-store";
 
-const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").trim().replace(/\/$/, "");
+const DEFAULT_API_BASE_URL = "https://caexamcheckerai.com";
+const API_BASE_URL = ((process.env.EXPO_PUBLIC_API_BASE_URL ?? "").trim() || DEFAULT_API_BASE_URL).replace(/\/+$/, "");
+export { API_BASE_URL };
 const TOKEN_KEY = "ai_exam_session_token";
 
 export class ApiError extends Error {
