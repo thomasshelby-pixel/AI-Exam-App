@@ -1,7 +1,10 @@
 import { Stack, type ErrorBoundaryProps } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+
+SplashScreen.setOptions({ duration: 650, fade: true });
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   return (
@@ -30,7 +33,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: "#0B1020" },
+          contentStyle: { backgroundColor: "#071126" },
           animation: "fade"
         }}
       />
@@ -41,13 +44,13 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   errorScreen: {
     flex: 1,
-    backgroundColor: "#0B1020",
+    backgroundColor: "#071126",
     paddingHorizontal: 22,
     paddingTop: 48,
     paddingBottom: 28,
     gap: 14
   },
-  errorEyebrow: { color: "#C7F36B", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
+  errorEyebrow: { color: "#78B9FF", fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
   errorTitle: { color: "#F7F8FC", fontSize: 26, lineHeight: 32, fontWeight: "900" },
   errorDescription: { color: "#AAB4C7", fontSize: 14, lineHeight: 21 },
   errorBox: {
@@ -62,11 +65,11 @@ const styles = StyleSheet.create({
   errorMessage: { color: "#FFE3A8", fontSize: 13, lineHeight: 19 },
   errorStack: { color: "#AAB4C7", fontSize: 10, lineHeight: 15 },
   retryButton: {
-    backgroundColor: "#C7F36B",
+    backgroundColor: "#78B9FF",
     borderRadius: 14,
     minHeight: 50,
     alignItems: "center",
     justifyContent: "center"
   },
-  retryText: { color: "#101827", fontSize: 15, fontWeight: "800" }
+  retryText: { color: "#071126", fontSize: 15, fontWeight: "800" }
 });
