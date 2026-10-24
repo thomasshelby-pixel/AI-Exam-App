@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  android-debug-apk:
-    name: Typecheck and build standalone Android APK
+  android-release-apk:
+    name: SDK 58 checks and standalone Android APK
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -18,7 +18,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -29,13 +29,22 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          packages: 'platform-tools platforms;android-37 build-tools;37.0.0'
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Expo dependency compatibility check
+        run: npx expo install --check
+
+      - name: Expo Doctor
+        run: npx expo-doctor@latest
+
       - name: TypeScript typecheck
         run: npm run typecheck
+
+      - name: Android JavaScript bundle export
+        run: npx expo export --platform android
 
       - name: Generate Android project
         run: npx expo prebuild --platform android --non-interactive
