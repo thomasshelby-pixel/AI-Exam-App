@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 concurrency:
-  group: mobile-ci-${{ github.event.pull_request.head.ref || github.ref }}
+  group: mobile-ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
