@@ -11,12 +11,32 @@
       "bundleIdentifier": "com.caexamchecker.aiapp"
     },
     "android": {
-      "package": "com.caexamchecker.aiapp"
+      "package": "com.caexamchecker.aiapp",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/monochrome-icon.png",
+        "backgroundColor": "#071126"
+      }
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-document-picker"
-    ]
+      "expo-document-picker",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 270,
+          "resizeMode": "contain",
+          "backgroundColor": "#071126",
+          "dark": {
+            "image": "./assets/splash.png",
+            "backgroundColor": "#071126"
+          }
+        }
+      ]
+    ],
+    "icon": "./assets/icon.png",
+    "primaryColor": "#0B1C3B"
   }
 }
