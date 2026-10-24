@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { router } from "expo-router";
 import {
   ActivityIndicator,
-  NativeModules,
   Platform,
   Pressable,
   RefreshControl,
@@ -12,7 +11,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import RazorpayCheckout from "react-native-razorpay";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, apiRequest } from "@/src/lib/api";
 
@@ -176,13 +174,19 @@ export default function CreditsScreen() {
       setError("Enter a whole number from 1 to 500 evaluations.");
       return;
     }
-    if (Platform.OS === "web" || !NativeModules.RNRazorpayCheckout) {
-      setError("Native Razorpay checkout needs the newly built standalone Android app. It does not run inside Expo Go.");
+    if (Platform.OS === "web") {
+      setError("Native Razorpay checkout is available in the installed Android app, not in the web preview.");
       return;
     }
 
     setPaying(true);
     try {
+      let RazorpayCheckout: typeof import("react-native-razorpay").default;
+      try {
+        RazorpayCheckout = (await import("react-native-razorpay")).default;
+      } catch {
+        throw new Error("Native Razorpay checkout could not load. Install the updated standalone Android APK; Expo Go does not include this native module.");
+      }
       const payload = tab === "COMBO"
         ? { purchaseType: plan, courseLevel: course }
         : { purchaseType: "CUSTOM", quantity: parsedQuantity };
