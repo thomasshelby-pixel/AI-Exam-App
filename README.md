@@ -24,7 +24,7 @@ The mobile app defaults to the production API at `https://caexamcheckerai.com`; 
 
 ## Build verification
 
-GitHub Actions typechecks the app, generates the Android project, builds an installable **debug APK**, and uploads it as the `ca-exam-checker-ai-debug-apk` artifact for 14 days. Download it from the successful workflow run under **Actions → Mobile App Checks → Artifacts**. This debug APK is for private device testing, not a Play Store release. Test sign-in, email OTP, MFA, profile, PDF submission, evaluation status/results, and authenticated PDF downloads on a real Android device before release. The website/backend repo remains unchanged.
+GitHub Actions typechecks the app, generates the Android project, and builds a standalone **release-mode APK with the JavaScript bundle included**, uploading it as the `ca-exam-checker-ai-standalone-apk` artifact for 14 days. Download it from a successful workflow run under **Actions → Mobile App Checks → Artifacts**. This APK is for private device testing, not a Play Store release. Test sign-in, email OTP, MFA, profile, PDF submission, evaluation status/results, and authenticated PDF downloads on a real Android device before release. The website/backend repo remains unchanged.
 
 ## Safety rules
 
