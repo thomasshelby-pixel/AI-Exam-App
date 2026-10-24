@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, downloadAndShareAuthenticatedFile } from "@/src/lib/api";
 
 type RecheckRequest = { id?: string; request_type?: string; requestType?: string; question_number?: string; questionNumber?: string; reason?: string; status?: string; created_at?: string; createdAt?: string };
+
+type MarkingComponentView = { componentId?: string; componentType?: string; expectedRequirement?: string; studentEvidence?: string; assessment?: string; marksAvailable?: number; marksAwarded?: number; marksDeducted?: number; deductionReason?: string; supportingProvision?: string; idealAnswer?: string; whatWasMissing?: string };
+type QuestionFeedback = { questionNumber?: string; subQuestion?: string; topic?: string; maximumMarks?: number; marksAwarded?: number; marksLost?: number; status?: string; detailedFeedback?: string; reasonForDeduction?: string; missingRequirements?: string[]; applicableProvisions?: string[]; markingComponents?: MarkingComponentView[]; structuredEvidence?: { markingComponents?: MarkingComponentView[]; overallReason?: string }; stepMarkingBreakdown?: Array<{ step?: string; marksAwarded?: number; maximumMarks?: number; remarks?: string }> };
+type ModeBreakdown = { totalMarks?: number; maximumMarks?: number; percentage?: number; grade?: string; displayName?: string; philosophy?: string };
+type EvaluationReportData = { overallSummary?: string; strengths?: string[]; weaknesses?: string[]; recommendations?: string[]; questions?: QuestionFeedback[]; topicPerformance?: Array<{ topic?: string; marksObtained?: number; maximumMarks?: number; percentage?: number; status?: string }>; presentationAnalysis?: { score?: number; feedback?: string; workingNotesQuality?: string; handwritingLegibility?: string }; accuracyAnalysis?: { calculationAccuracy?: string; provisionsAccuracy?: string; methodologyCorrectness?: string }; evaluationStandardDisclaimer?: string; modeBreakdown?: { standard?: ModeBreakdown; strict?: ModeBreakdown; moderate?: ModeBreakdown }; scoreCalculationAudit?: Array<{ questionNumber?: string; maxMarks?: number; awardedMarks?: number; deductions?: number; componentsCount?: number }>; checkingMode?: string };
 
 type Detail = {
   id: string;
@@ -19,6 +24,7 @@ type Detail = {
   completed_at?: string;
   error_message?: string;
   resultJson?: unknown;
+  raw_result_json?: string;
 };
 
 const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "REJECTED", "NEEDS_REVIEW", "CANCELLED", "PERSISTENCE_FAILED"]);
@@ -36,6 +42,9 @@ export default function EvaluationDetailScreen() {
   const [recheckReason, setRecheckReason] = useState("");
   const [rechecking, setRechecking] = useState(false);
   const [recheckNotice, setRecheckNotice] = useState("");
+  const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
+  const [comparisonQuestion, setComparisonQuestion] = useState<string | null>(null);
+  const [selectedMode, setSelectedMode] = useState<"standard" | "strict" | "moderate">("standard");
 
   const load = useCallback(async () => {
     if (!id) {
@@ -59,6 +68,19 @@ export default function EvaluationDetailScreen() {
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
+  const report = useMemo<EvaluationReportData | null>(() => {
+    const raw = data?.resultJson ?? data?.raw_result_json;
+    if (!raw) return null;
+    if (typeof raw === "string") {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed as EvaluationReportData : null;
+      } catch { return null; }
+    }
+    return typeof raw === "object" ? raw as EvaluationReportData : null;
+  }, [data?.resultJson, data?.raw_result_json]);
+  const selectedModeData = report?.modeBreakdown?.[selectedMode];
+
 
   // Keep pending evaluations current without making the student pull-to-refresh.
   // Stop polling once the backend reports a terminal state or the screen unmounts.
@@ -135,8 +157,8 @@ export default function EvaluationDetailScreen() {
               <Text style={s.status}>{data.status || "UNKNOWN"}</Text>
               {data.status === "COMPLETED" ? (
                 <>
-                  <Text style={s.score}>{data.total_marks ?? "—"} / {data.maximum_marks ?? "—"}</Text>
-                  <Text style={s.sub}>{typeof data.percentage === "number" ? `${data.percentage.toFixed(1)}%` : ""}</Text>
+                  <Text style={s.score}>{selectedModeData?.totalMarks ?? data.total_marks ?? "—"} / {selectedModeData?.maximumMarks ?? data.maximum_marks ?? "—"}</Text>
+                  <Text style={s.sub}>{typeof (selectedModeData?.percentage ?? data.percentage) === "number" ? `${Number(selectedModeData?.percentage ?? data.percentage).toFixed(1)}%` : ""}{selectedModeData?.grade ? ` · ${selectedModeData.grade}` : ""}</Text>
                 </>
               ) : (
                 <Text style={s.sub}>
@@ -148,6 +170,95 @@ export default function EvaluationDetailScreen() {
               {data.error_message ? <Text style={s.error}>{data.error_message}</Text> : null}
             </View>
             <Pressable style={s.button} onPress={() => void load()}><Text style={s.buttonText}>Refresh status now</Text></Pressable>
+            {data.status === "COMPLETED" && report?.modeBreakdown ? (
+              <View style={s.reportCard}>
+                <Text style={s.reportHeading}>Checking mode comparison</Text>
+                <Text style={s.note}>These are the score variants returned by the evaluator for this completed report.</Text>
+                <View style={s.modeRow}>
+                  {(["standard", "strict", "moderate"] as const).filter((m) => !!report.modeBreakdown?.[m]).map((m) => (
+                    <Pressable key={m} onPress={() => setSelectedMode(m)} style={[s.modeChip, selectedMode === m && s.modeChipActive]}>
+                      <Text style={[s.modeChipText, selectedMode === m && s.modeChipTextActive]}>{report.modeBreakdown?.[m]?.displayName || m}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {selectedModeData?.philosophy ? <Text style={s.body}>{selectedModeData.philosophy}</Text> : null}
+              </View>
+            ) : null}
+            {data.status === "COMPLETED" && report ? (
+              <View style={s.reportCard}>
+                <Text style={s.reportHeading}>Evaluation feedback</Text>
+                {report.overallSummary ? <Text style={s.body}>{report.overallSummary}</Text> : null}
+                <View style={s.summaryColumns}>
+                  <View style={s.summaryBlock}>
+                    <Text style={s.reportSubheading}>Strengths</Text>
+                    {(report.strengths || []).length ? report.strengths?.map((v, i) => <Text key={String(i) + v} style={s.reportBullet}>• {v}</Text>) : <Text style={s.note}>No strengths list was returned.</Text>}
+                  </View>
+                  <View style={s.summaryBlock}>
+                    <Text style={s.reportSubheading}>Areas to improve</Text>
+                    {(report.weaknesses || []).length ? report.weaknesses?.map((v, i) => <Text key={String(i) + v} style={s.reportBullet}>• {v}</Text>) : <Text style={s.note}>No weaknesses list was returned.</Text>}
+                  </View>
+                </View>
+                {report.recommendations?.length ? <View style={s.summaryBlock}><Text style={s.reportSubheading}>Recommended next steps</Text>{report.recommendations.map((v, i) => <Text key={String(i) + v} style={s.reportBullet}>• {v}</Text>)}</View> : null}
+                {report.topicPerformance?.length ? <View style={s.summaryBlock}>
+                  <Text style={s.reportSubheading}>Topic performance</Text>
+                  {report.topicPerformance.map((t, i) => <View key={String(i) + (t.topic || "topic")} style={s.topicRow}>
+                    <View style={s.topicText}><Text style={s.topicName}>{t.topic || "Topic"}</Text><Text style={s.note}>{t.marksObtained ?? "—"} / {t.maximumMarks ?? "—"} · {t.status || "—"}</Text></View>
+                    <Text style={s.topicPercent}>{typeof t.percentage === "number" ? t.percentage.toFixed(1) + "%" : "—"}</Text>
+                  </View>)}
+                </View> : null}
+                {report.presentationAnalysis || report.accuracyAnalysis ? <View style={s.summaryBlock}>
+                  <Text style={s.reportSubheading}>Presentation & technical analysis</Text>
+                  {report.presentationAnalysis?.feedback ? <Text style={s.body}>Presentation: {report.presentationAnalysis.feedback}</Text> : null}
+                  {report.presentationAnalysis?.workingNotesQuality ? <Text style={s.note}>Working notes: {report.presentationAnalysis.workingNotesQuality}</Text> : null}
+                  {report.presentationAnalysis?.handwritingLegibility ? <Text style={s.note}>Legibility: {report.presentationAnalysis.handwritingLegibility}</Text> : null}
+                  {report.accuracyAnalysis?.calculationAccuracy ? <Text style={s.body}>Calculations: {report.accuracyAnalysis.calculationAccuracy}</Text> : null}
+                  {report.accuracyAnalysis?.provisionsAccuracy ? <Text style={s.body}>Provisions: {report.accuracyAnalysis.provisionsAccuracy}</Text> : null}
+                  {report.accuracyAnalysis?.methodologyCorrectness ? <Text style={s.body}>Methodology: {report.accuracyAnalysis.methodologyCorrectness}</Text> : null}
+                </View> : null}
+                <Text style={s.reportSubheading}>Question-wise feedback ({report.questions?.length ?? 0})</Text>
+                {report.questions?.length ? report.questions.map((q, i) => {
+                  const key = String(i) + ":" + (q.questionNumber || "Q" + (i + 1));
+                  const components = q.markingComponents || q.structuredEvidence?.markingComponents || [];
+                  const open = expandedQuestion === key;
+                  const comparing = comparisonQuestion === key;
+                  return <View key={key} style={s.questionCard}>
+                    <Pressable onPress={() => setExpandedQuestion(open ? null : key)} style={s.questionHeader}>
+                      <View style={s.questionHeadingCopy}>
+                        <Text style={s.questionTitle}>Q{q.questionNumber || i + 1}{q.subQuestion ? " (" + q.subQuestion + ")" : ""}{q.topic ? " · " + q.topic : ""}</Text>
+                        <Text style={s.note}>{q.marksAwarded ?? 0} / {q.maximumMarks ?? 0} · Lost {q.marksLost ?? Math.max(0, (q.maximumMarks || 0) - (q.marksAwarded || 0))} · {(q.status || "not rated").replaceAll("_", " ")}</Text>
+                      </View>
+                      <Text style={s.link}>{open ? "Hide" : "Details"}</Text>
+                    </Pressable>
+                    {open ? <View style={s.questionDetail}>
+                      {q.detailedFeedback ? <Text style={s.body}>{q.detailedFeedback}</Text> : null}
+                      {q.reasonForDeduction ? <Text style={s.note}>Deduction reason: {q.reasonForDeduction}</Text> : null}
+                      {q.structuredEvidence?.overallReason ? <Text style={s.note}>Structured marking: {q.structuredEvidence.overallReason}</Text> : null}
+                      {q.missingRequirements?.length ? <View><Text style={s.reportSubheading}>Missing requirements</Text>{q.missingRequirements.map((v, j) => <Text key={String(j) + v} style={s.reportBullet}>• {v}</Text>)}</View> : null}
+                      {q.applicableProvisions?.length ? <Text style={s.note}>Applicable provisions / standards: {q.applicableProvisions.join(", ")}</Text> : null}
+                      {q.stepMarkingBreakdown?.length ? <View><Text style={s.reportSubheading}>Step marks</Text>{q.stepMarkingBreakdown.map((step, j) => <View key={String(j) + (step.step || "")} style={s.markingComponent}>
+                        <Text style={s.reportSubheading}>{step.step || "Step " + (j + 1)} · {step.marksAwarded ?? 0} / {step.maximumMarks ?? 0}</Text>
+                        {step.remarks ? <Text style={s.note}>{step.remarks}</Text> : null}
+                      </View>)}</View> : null}
+                      <Pressable onPress={() => setComparisonQuestion(comparing ? null : key)} style={s.secondaryButton}>
+                        <Text style={s.secondaryButtonText}>{comparing ? "Hide stepwise comparison" : "Compare marking requirements & my evidence"}</Text>
+                      </Pressable>
+                      {comparing ? components.length ? components.map((component, j) => <View key={component.componentId || String(j)} style={s.markingComponent}>
+                        <View style={s.componentHeader}><Text style={s.reportSubheading}>{component.componentType || "Step " + (j + 1)}</Text><Text style={s.componentMarks}>{component.marksAwarded ?? 0} / {component.marksAvailable ?? 0}</Text></View>
+                        <Text style={s.componentLabel}>Expected requirement</Text><Text style={s.body}>{component.expectedRequirement || component.idealAnswer || "No requirement text was included in the report."}</Text>
+                        <Text style={s.componentLabel}>Evidence from your answer</Text><Text style={s.body}>{component.studentEvidence || "No specific student evidence was included in the report."}</Text>
+                        {component.deductionReason || component.whatWasMissing ? <Text style={s.note}>Why marks changed: {component.deductionReason || component.whatWasMissing}</Text> : null}
+                        {component.supportingProvision ? <Text style={s.note}>Reference: {component.supportingProvision}</Text> : null}
+                      </View>) : <Text style={s.note}>This question report did not include structured marking components. The step marks and examiner feedback above are the available details.</Text> : null}
+                    </View> : null}
+                  </View>;
+                }) : <Text style={s.note}>The server did not return question-level feedback for this evaluation.</Text>}
+                {report.scoreCalculationAudit?.length ? <View style={s.summaryBlock}>
+                  <Text style={s.reportSubheading}>Score calculation audit</Text>
+                  {report.scoreCalculationAudit.map((item, i) => <Text key={String(i) + (item.questionNumber || "")} style={s.note}>Q{item.questionNumber || i + 1}: {item.awardedMarks ?? "—"} / {item.maxMarks ?? "—"} · deductions {item.deductions ?? "—"} · {item.componentsCount ?? 0} components</Text>)}
+                </View> : null}
+                {report.evaluationStandardDisclaimer ? <Text style={s.disclaimer}>{report.evaluationStandardDisclaimer}</Text> : null}
+              </View>
+            ) : null}
             {data.status === "COMPLETED" ? (
               <>
                 <Pressable disabled={downloading} style={[s.secondaryButton, downloading && { opacity: 0.65 }]} onPress={() => void download("checked-copy")}>
@@ -209,5 +320,31 @@ const s = StyleSheet.create({
   recheckSuccess: { color: "#C7F36B", fontSize: 11, lineHeight: 17 },
   recheckHistory: { gap: 8, borderTopWidth: 1, borderTopColor: "#27354C", paddingTop: 10 },
   recheckItem: { borderRadius: 10, backgroundColor: "#0D1424", padding: 10, gap: 5 },
+  reportCard: { backgroundColor: "#11192A", borderColor: "#263149", borderWidth: 1, borderRadius: 16, padding: 15, gap: 12 },
+  reportHeading: { color: "#F1F4FA", fontSize: 17, fontWeight: "900" },
+  reportSubheading: { color: "#C7F36B", fontSize: 12, fontWeight: "900" },
+  summaryColumns: { flexDirection: "column", gap: 10 },
+  summaryBlock: { backgroundColor: "#0D1424", borderColor: "#263149", borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  reportBullet: { color: "#D8E0ED", fontSize: 11, lineHeight: 17 },
+  body: { color: "#D8E0ED", fontSize: 12, lineHeight: 19 },
+  modeRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  modeChip: { borderWidth: 1, borderColor: "#34425D", borderRadius: 9, paddingHorizontal: 10, paddingVertical: 8 },
+  modeChipActive: { backgroundColor: "#172B4D", borderColor: "#3B82F6" },
+  modeChipText: { color: "#AAB4C7", fontSize: 10, fontWeight: "800" },
+  modeChipTextActive: { color: "#93C5FD" },
+  topicRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, borderBottomWidth: 1, borderBottomColor: "#27354C", paddingVertical: 7 },
+  topicText: { flex: 1, gap: 3 },
+  topicName: { color: "#F1F4FA", fontSize: 11, fontWeight: "800" },
+  topicPercent: { color: "#C7F36B", fontSize: 12, fontWeight: "900" },
+  questionCard: { borderWidth: 1, borderColor: "#2B3650", borderRadius: 12, padding: 12, gap: 9 },
+  questionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  questionHeadingCopy: { flex: 1, gap: 4 },
+  questionTitle: { color: "#F1F4FA", fontSize: 12, fontWeight: "900" },
+  questionDetail: { gap: 9 },
+  markingComponent: { backgroundColor: "#0D1424", borderWidth: 1, borderColor: "#27354C", borderRadius: 10, padding: 11, gap: 6 },
+  componentHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 7 },
+  componentMarks: { color: "#C7F36B", fontSize: 11, fontWeight: "900" },
+  componentLabel: { color: "#93C5FD", fontSize: 10, fontWeight: "900" },
+  disclaimer: { color: "#8290A8", fontSize: 10, lineHeight: 15 },
   error: { color: "#FFBABA", fontSize: 13 },
 });
