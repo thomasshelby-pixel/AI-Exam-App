@@ -61,6 +61,7 @@ export default function SignInScreen() {
           <TextInput value={email} onChangeText={setEmail} placeholder="you@example.com" placeholderTextColor="#66738A" autoCapitalize="none" keyboardType="email-address" autoComplete="email" style={styles.input} accessibilityLabel="Email address" />
           <Text style={styles.label}>PASSWORD</Text>
           <TextInput value={password} onChangeText={setPassword} placeholder="Enter your password" placeholderTextColor="#66738A" secureTextEntry autoComplete="password" style={styles.input} accessibilityLabel="Password" />
+          <Link href="/forgot-password" style={styles.forgot}>Forgot password?</Link>
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Pressable onPress={signIn} disabled={busy} style={[styles.button, busy && styles.disabled]}>
             {busy ? <ActivityIndicator color="#101827" /> : <Text style={styles.buttonText}>Sign in securely  →</Text>}
@@ -88,6 +89,7 @@ const styles = StyleSheet.create({
   button: { marginTop: 22, minHeight: 54, borderRadius: 15, backgroundColor: "#C7F36B", alignItems: "center", justifyContent: "center" },
   disabled: { opacity: 0.7 },
   buttonText: { color: "#101827", fontWeight: "800", fontSize: 15 },
+  forgot: { color: "#C7F36B", alignSelf: "flex-end", marginTop: 2, marginBottom: 8, fontSize: 12, fontWeight: "800" },
   register: { color: "#C7F36B", fontSize: 12, fontWeight: "800", marginTop: 18, textAlign: "center" },
   security: { color: "#748199", fontSize: 11, lineHeight: 17, marginTop: 18 }
 });
