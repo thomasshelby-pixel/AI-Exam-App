@@ -51,7 +51,6 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safe}>
       {restoringSession ? (
         <View style={styles.restoring}>
-          <View style={styles.logo}><Image source={require("../assets/icon.png")} style={styles.logoImage} resizeMode="cover" /></View>
           <Image source={require("../assets/splash.png")} style={styles.loadingBrandImage} resizeMode="contain" />
           <ActivityIndicator color="#78B9FF" size="small" />
           <Text style={styles.restoringText}>Opening your secure workspace</Text>
