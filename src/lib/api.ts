@@ -14,6 +14,10 @@ export class ApiError extends Error {
   }
 }
 
+export async function getSessionToken(): Promise<string | null> {
+  return SecureStore.getItemAsync(TOKEN_KEY);
+}
+
 export async function saveSessionToken(token: string) {
   if (!token.trim()) throw new Error("Cannot store an empty session token.");
   await SecureStore.setItemAsync(TOKEN_KEY, token);
