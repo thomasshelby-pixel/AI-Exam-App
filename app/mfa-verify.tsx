@@ -18,7 +18,7 @@ export default function MfaVerifyScreen() {
    const payload=useRecovery
     ? {mfaSessionToken:sessionToken,recoveryCode:code.trim(),rememberDevice:remember,trustDevice:remember,deviceId}
     : {mfaSessionToken:sessionToken,otpCode:code.trim(),rememberDevice:remember,trustDevice:remember,deviceId};
-   const r=await apiRequest<{success?:boolean;token?:string;user?:{role?:string};remainingCodes?:number;warning?:string}>(route,{method:"POST",body:JSON.stringify(payload)});
+   const r=await apiRequest<{success?:boolean;token?:string;trustToken?:string;user?:{role?:string};remainingCodes?:number;warning?:string}>(route,{method:"POST",body:JSON.stringify(payload)});
    if(!r.success||!r.token||r.user?.role!=="STUDENT")throw new Error("The server did not return a valid student session.");
    await saveSessionToken(r.token);
    await saveDeviceTrustToken(r.trustToken || null);

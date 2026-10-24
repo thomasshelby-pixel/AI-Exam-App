@@ -24,14 +24,14 @@ export default function EnrollmentsScreen(){
  async function join(){const instituteCode=code.trim().toUpperCase();if(!instituteCode){setError("Enter the institute code provided by your institute.");return;}setJoining(true);setError("");setNotice("");try{const r=await apiRequest<{success?:boolean;message?:string}>("/api/student/join-institute",{method:"POST",body:JSON.stringify({instituteCode})});setNotice(r.message||"Institute enrollment confirmed.");setCode("");await load();setTab("institutes");}catch(e){setError(e instanceof Error?e.message:"Could not join institute.");}finally{setJoining(false);}}
  async function submitPaper(kind:"test"|"material", item:Test|Material){
    setError("");setNotice("");
-   const picker=await DocumentPicker.getDocumentAsync({type:["application/pdf","image/*"],copyToCacheDirectory:true,multiple:false});
+   const picker=await DocumentPicker.getDocumentAsync({type:"application/pdf",copyToCacheDirectory:true,multiple:false});
    if(picker.canceled||!picker.assets?.length)return;
    const file=picker.assets[0];
-   if(typeof file.size==="number"&&file.size>MAX_UPLOAD){setError("File exceeds the mobile upload limit of 30 MB. Please compress it before submitting.");return;}
+   if(typeof file.size==="number"&&file.size>MAX_UPLOAD){setError("PDF exceeds the mobile upload limit of 30 MB. Please compress it before submitting.");return;}
    setUploading(item.id);
    try{
      const encoded=await FileSystem.readAsStringAsync(file.uri,{encoding:FileSystem.EncodingType.Base64});
-     if(Math.ceil(encoded.length*3/4)>MAX_UPLOAD)throw new Error("File exceeds the 30 MB mobile upload limit.");
+     if(Math.ceil(encoded.length*3/4)>MAX_UPLOAD)throw new Error("PDF exceeds the 30 MB mobile upload limit.");
      const path=kind==="test"?"/api/student/institute/tests/"+encodeURIComponent(item.id)+"/submit":"/api/student/institute-materials/"+encodeURIComponent(item.id)+"/submit";
      const r=await apiRequest<{success?:boolean;evaluationId?:string;message?:string}>(path,{method:"POST",body:JSON.stringify({fileBase64:encoded,mimeType:file.mimeType||(file.name.toLowerCase().endsWith(".pdf")?"application/pdf":"image/jpeg"),filename:file.name,checkingMode:"standard"})});
      if(!r.success||!r.evaluationId)throw new Error(r.message||"The server did not confirm submission.");

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { router } from "expo-router";
 import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ApiError, apiRequest } from "@/src/lib/api";
+import { ApiError, apiRequest, saveDeviceTrustToken, saveSessionToken } from "@/src/lib/api";
 
 type Session = { id: string; device_id?: string; device_name?: string; ip_address?: string; status?: string; created_at?: string; last_activity_at?: string; expires_at?: string };
 type MfaStatus = { role?: string; mfaMandatory?: boolean; mfaEnabled?: boolean; mfaVerified?: boolean; authenticatorsCount?: number; recoveryCodesRemaining?: number; recoveryCodesTotal?: number };
@@ -68,11 +68,17 @@ export default function SecurityScreen() {
   }
   async function verifyMfa() {
     if (!/^\d{6}$/.test(otp.trim())) { setError("Enter the current 6-digit authenticator code."); return; }
-    const res = await action("enroll", () => apiRequest<{ recoveryCodes?: string[]; message?: string }>("/api/auth/mfa/enroll/verify", {
+    const res = await action("enroll", () => apiRequest<{ recoveryCodes?: string[]; message?: string; token?: string; trustToken?: string }>("/api/auth/mfa/enroll/verify", {
       method: "POST", body: JSON.stringify({ secretKey: setup?.secretKey || setup?.secret || setup?.manualEntryKey, otpCode: otp.trim() })
     }), "Two-factor authentication enabled.");
+    if (res?.token) await saveSessionToken(res.token);
+    if (res?.trustToken) await saveDeviceTrustToken(res.trustToken);
     if (res?.recoveryCodes?.length) { setCodes(res.recoveryCodes); setNotice("MFA enabled. Save these one-time recovery codes now; they will not be shown again."); }
     setSetup(null); setOtp("");
+  }
+  async function disableMfa() {
+    const res = await action("disable", () => apiRequest<{ success?: boolean }>("/api/auth/mfa/disable", { method: "POST", body: JSON.stringify({}) }), "MFA disabled by server.");
+    if (res?.success) await saveDeviceTrustToken(null);
   }
   async function generateRecoveryCodes() {
     const res = await action("recovery", () => apiRequest<{ recoveryCodes?: string[]; message?: string }>("/api/auth/mfa/recovery-codes/regenerate", { method: "POST" }), "Recovery codes regenerated.");
@@ -112,7 +118,7 @@ export default function SecurityScreen() {
         {!mfa?.mfaEnabled ? <Pressable disabled={!!saving} onPress={() => { void beginMfa(); }} style={[s.button, saving && s.disabled]}><Text style={s.buttonText}>{saving === "setup" ? "Loading setup…" : "Set up authenticator app"}</Text></Pressable> : <>
           <Text style={s.help}>Authenticators: {mfa?.authenticatorsCount ?? 0} · Recovery codes left: {recoveryLeft ?? mfa?.recoveryCodesRemaining ?? "—"}</Text>
           <Pressable disabled={!!saving} onPress={() => { void generateRecoveryCodes(); }} style={[s.secondary, saving && s.disabled]}><Text style={s.secondaryText}>{saving === "recovery" ? "Generating…" : "Regenerate one-time recovery codes"}</Text></Pressable>
-          <Pressable disabled={!!saving || !!mfa?.mfaMandatory} onPress={() => Alert.alert("Disable authenticator MFA?", "This removes authenticator protection and invalidates the account recovery codes. Only continue if you understand the security impact.", [{ text: "Cancel", style: "cancel" }, { text: "Disable MFA", style: "destructive", onPress: () => { void action("disable", () => apiRequest("/api/auth/mfa/disable", { method: "POST", body: JSON.stringify({}) }), "MFA disabled by server."); } }])} style={[s.dangerButton, (!!saving || !!mfa?.mfaMandatory) && s.disabled]}><Text style={s.dangerText}>{saving === "disable" ? "Disabling…" : "Disable MFA (student accounts only)"}</Text></Pressable>
+          <Pressable disabled={!!saving || !!mfa?.mfaMandatory} onPress={() => Alert.alert("Disable authenticator MFA?", "This removes authenticator protection and invalidates the account recovery codes. Only continue if you understand the security impact.", [{ text: "Cancel", style: "cancel" }, { text: "Disable MFA", style: "destructive", onPress: () => { void disableMfa(); } }])} style={[s.dangerButton, (!!saving || !!mfa?.mfaMandatory) && s.disabled]}><Text style={s.dangerText}>{saving === "disable" ? "Disabling…" : "Disable MFA (student accounts only)"}</Text></Pressable>
         </>}
         {setup ? <View style={s.setupBox}>
           <Text style={s.itemTitle}>1. Add this account to your authenticator</Text>
@@ -162,6 +168,6 @@ const s = StyleSheet.create({
   input:{height:48,borderRadius:12,borderWidth:1,borderColor:"#34425D",backgroundColor:"#0B1020",paddingHorizontal:13,color:"#F7F8FC",fontSize:13},button:{minHeight:49,borderRadius:12,backgroundColor:"#C7F36B",alignItems:"center",justifyContent:"center",padding:12},buttonText:{color:"#101827",fontWeight:"900",fontSize:12},
   secondary:{minHeight:42,borderRadius:11,borderColor:"#34425D",borderWidth:1,alignItems:"center",justifyContent:"center",padding:10},secondaryText:{color:"#B7F36B",fontWeight:"800",fontSize:11},
   dangerButton:{minHeight:42,borderRadius:11,borderColor:"#8A354A",borderWidth:1,alignItems:"center",justifyContent:"center",padding:10},dangerText:{color:"#FFB8B8",fontWeight:"800",fontSize:11},
-  setupBox:{backgroundColor:"#172333",borderRadius:13,padding:12,gap:10},secret:{color:"#FDE68A",fontSize:14,fontWeight:"900",letterSpacing:1.2},recoveryCode:{color:"#C7F36B",fontFamily:"monospace",fontSize:14,paddingVertical:2},
+  setupBox:{backgroundColor:"#172333",borderRadius:13,padding:12,gap:10},secret:{color:"#FDE68A",fontSize:14,fontWeight:"900",letterSpacing:1.2},qr:{width:220,height:220,alignSelf:"center",backgroundColor:"#FFFFFF",borderRadius:12,padding:8},recoveryCode:{color:"#C7F36B",fontFamily:"monospace",fontSize:14,paddingVertical:2},
   notice:{color:"#C7F36B",fontSize:12,lineHeight:18},link:{color:"#60A5FA",fontWeight:"800",fontSize:12},errorBox:{backgroundColor:"#321E2B",padding:14,borderRadius:12,gap:8},error:{color:"#FFC2C2",fontSize:12,lineHeight:18},disabled:{opacity:0.45}
 });
