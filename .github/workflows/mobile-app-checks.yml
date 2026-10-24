@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: mobile-app-checks-${{ github.event.pull_request.head.ref || github.ref }}
+  group: mobile-app-checks-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
