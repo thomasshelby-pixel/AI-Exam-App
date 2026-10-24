@@ -15,6 +15,9 @@
 - PDF submission, disclaimer acknowledgement, evaluation list/detail with automatic polling, authenticated PDF downloads.
 - Notification inbox with server-backed unread count, mark-one-read and mark-all-read; email, marketing email and in-app preference toggles.
 - Credit balance/allowance/ledger screen; checkout opens the existing website.
+- Notification preference GET/PUT routes; preference values update only after server confirmation.
+- Self-service deletion uses GET /api/student/delete-account/options, POST /api/student/delete-account/send-otp for accounts requiring email OTP, POST /api/student/delete-account/verify-otp, and POST /api/student/delete-account with the backend-required verification and explicit DELETE confirmation.
+- API client no longer clears the login token for every 401 response; it clears only for known invalid/expired session responses so a wrong password does not silently log the student out.
 
 ## Still to verify
 - Static route inspection does not replace end-to-end API tests. CI and a real Android device must verify login, OTP/TOTP, persisted notification read state, profile update, submission, polling, downloads and credit balance refresh.
