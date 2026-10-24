@@ -88,9 +88,25 @@ jobs:
       - name: Build standalone release APK with embedded JS bundle
         id: build_release_apk
         run: cd android && ./gradlew assembleRelease
+      - name: Enable KVM when available for Android emulator
+        id: kvm
+        run: |
+          # Hosted Linux runners may expose /dev/kvm without granting the runner access.
+          # This permission change is confined to the disposable CI runner.
+          if [ -e /dev/kvm ]; then
+            sudo chmod 666 /dev/kvm || true
+          fi
+          if [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+            echo "disable=false" >> "$GITHUB_OUTPUT"
+            echo "KVM is accessible; use hardware-accelerated emulator boot."
+          else
+            echo "disable=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::KVM is unavailable; emulator will use software acceleration."
+          fi
       - name: Launch APK in Android emulator and capture crash logs
         uses: reactivecircus/android-emulator-runner@v2
         with:
+          disable-linux-hardware-acceleration: ${{ steps.kvm.outputs.disable }}
           api-level: 35
           arch: x86_64
           profile: pixel_2
