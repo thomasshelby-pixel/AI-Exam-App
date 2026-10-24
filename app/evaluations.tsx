@@ -5,16 +5,78 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest } from "@/src/lib/api";
 
 type Evaluation = { id: string; display_id?: string; subject_name?: string; subject_key?: string; status: string; total_marks?: number; maximum_marks?: number; percentage?: number; created_at?: string; completed_at?: string; rejection_reason?: string };
+const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "REJECTED", "NEEDS_REVIEW", "CANCELLED", "PERSISTENCE_FAILED"]);
+
 export default function EvaluationsScreen() {
- const [items,setItems]=useState<Evaluation[]>([]); const [busy,setBusy]=useState(true); const [error,setError]=useState("");
- const load=useCallback(async()=>{setError("");try{const r=await apiRequest<{evaluations?:Evaluation[]}>("/api/student/evaluations");setItems(r.evaluations||[]);}catch(e){setError(e instanceof Error?e.message:"Could not load evaluations.");}finally{setBusy(false);}},[]);
- useEffect(()=>{void load();},[load]);
- return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={busy} onRefresh={load} tintColor="#C7F36B" />}>
- <Pressable onPress={()=>router.back()}><Text style={s.back}>←  Dashboard</Text></Pressable><Text style={s.kicker}>YOUR WORK</Text><Text style={s.title}>Evaluations & results</Text><Text style={s.sub}>Status and marks are read from the existing evaluation system.</Text>
- {busy&&!items.length?<ActivityIndicator color="#C7F36B" size="large"/>:null}
- {error?<View style={s.errorBox}><Text style={s.error}>{error}</Text><Pressable onPress={load}><Text style={s.retry}>Try again</Text></Pressable></View>:null}
- {!busy&&!error&&!items.length?<View style={s.empty}><Text style={s.emptyTitle}>No evaluations yet</Text><Text style={s.sub}>When you submit an answer sheet, its status will appear here.</Text></View>:null}
- {items.map((item)=><Pressable key={item.id} onPress={() => router.push({ pathname: "/evaluation-detail", params: { id: item.id } })} style={s.card}><View style={s.row}><Text style={s.subject}>{item.subject_name||item.subject_key||"Answer sheet"}</Text><View style={[s.pill,item.status==="COMPLETED"?s.done:item.status==="FAILED"||item.status==="REJECTED"?s.failed:s.pending]}><Text style={s.pillText}>{item.status}</Text></View></View><Text style={s.id}>{item.display_id||item.id}</Text><View style={s.rowBottom}><Text style={s.date}>{item.created_at?new Date(item.created_at).toLocaleDateString():"Date unavailable"}</Text>{item.status==="COMPLETED"?<Text style={s.score}>{item.total_marks??"—"} / {item.maximum_marks??"—"} · {typeof item.percentage==="number"?item.percentage.toFixed(1)+"%":"Score"}</Text>:null}</View>{item.rejection_reason?<Text style={s.reason}>{item.rejection_reason}</Text>:null}</Pressable>)}
- </ScrollView></SafeAreaView>;
+  const [items, setItems] = useState<Evaluation[]>([]);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setBusy(true);
+    setError("");
+    try {
+      const response = await apiRequest<{ evaluations?: Evaluation[] }>("/api/student/evaluations");
+      setItems(Array.isArray(response.evaluations) ? response.evaluations : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load evaluations.");
+    } finally {
+      if (!silent) setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+  const hasPending = items.some((item) => !TERMINAL_STATUSES.has(String(item.status || "").toUpperCase()));
+  useEffect(() => {
+    if (!hasPending) return;
+    const timer = setInterval(() => { void load(true); }, 10000);
+    return () => clearInterval(timer);
+  }, [hasPending, load]);
+
+  return (
+    <SafeAreaView style={s.safe}>
+      <ScrollView contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={busy && items.length > 0} onRefresh={() => { void load(); }} tintColor="#C7F36B" />}>
+        <Pressable onPress={() => router.back()}><Text style={s.back}>←  Dashboard</Text></Pressable>
+        <Text style={s.kicker}>YOUR WORK</Text>
+        <Text style={s.title}>Evaluations & results</Text>
+        <Text style={s.sub}>Status and marks are read from the existing evaluation system.</Text>
+        {hasPending ? <Text style={s.polling}>Pending evaluations refresh automatically every 10 seconds.</Text> : null}
+        {busy && !items.length ? <ActivityIndicator color="#C7F36B" size="large" /> : null}
+        {error ? <View style={s.errorBox}><Text accessibilityRole="alert" style={s.error}>{error}</Text><Pressable onPress={() => { void load(); }}><Text style={s.retry}>Try again</Text></Pressable></View> : null}
+        {!busy && !error && !items.length ? <View style={s.empty}><Text style={s.emptyTitle}>No evaluations yet</Text><Text style={s.sub}>When you submit an answer sheet, its status will appear here.</Text></View> : null}
+        {items.map((item) => {
+          const status = String(item.status || "UNKNOWN").toUpperCase();
+          const complete = status === "COMPLETED";
+          const failed = ["FAILED", "REJECTED", "CANCELLED", "PERSISTENCE_FAILED"].includes(status);
+          return (
+            <Pressable key={item.id} onPress={() => router.push({ pathname: "/evaluation-detail", params: { id: item.id } })} style={s.card}>
+              <View style={s.row}>
+                <Text style={s.subject}>{item.subject_name || item.subject_key || "Answer sheet"}</Text>
+                <View style={[s.pill, complete ? s.done : failed ? s.failed : s.pending]}><Text style={s.pillText}>{status.replaceAll("_", " ")}</Text></View>
+              </View>
+              <Text style={s.id}>{item.display_id || item.id}</Text>
+              <View style={s.rowBottom}>
+                <Text style={s.date}>{item.created_at && !Number.isNaN(Date.parse(item.created_at)) ? new Date(item.created_at).toLocaleDateString() : "Date unavailable"}</Text>
+                {complete ? <Text style={s.score}>{item.total_marks ?? "—"} / {item.maximum_marks ?? "—"} · {typeof item.percentage === "number" ? item.percentage.toFixed(1) + "%" : "Score"}</Text> : null}
+              </View>
+              {item.rejection_reason ? <Text style={s.reason}>{item.rejection_reason}</Text> : null}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:"#0B1020"},content:{padding:22,paddingBottom:40,gap:15},back:{color:"#AAB4C7",fontSize:13,marginBottom:12},kicker:{color:"#C7F36B",fontSize:10,fontWeight:"800",letterSpacing:1.5},title:{color:"#F7F8FC",fontSize:28,fontWeight:"900",marginTop:-8},sub:{color:"#AAB4C7",fontSize:13,lineHeight:20},card:{backgroundColor:"#11192A",borderColor:"#202B41",borderWidth:1,borderRadius:17,padding:16,gap:11},row:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:10},subject:{color:"#F1F4FA",fontSize:15,fontWeight:"800",flex:1},pill:{borderRadius:20,paddingHorizontal:9,paddingVertical:6},done:{backgroundColor:"#18392F"},failed:{backgroundColor:"#40242D"},pending:{backgroundColor:"#333044"},pillText:{color:"#E6F0E9",fontSize:9,fontWeight:"900"},id:{color:"#7F8AA2",fontSize:10},rowBottom:{flexDirection:"row",justifyContent:"space-between",gap:8,alignItems:"center"},date:{color:"#929DB2",fontSize:11},score:{color:"#C7F36B",fontSize:12,fontWeight:"800"},reason:{color:"#FFB7B7",fontSize:12,lineHeight:17},empty:{padding:24,backgroundColor:"#11192A",borderRadius:18,gap:8},emptyTitle:{color:"#F1F4FA",fontSize:17,fontWeight:"800"},errorBox:{backgroundColor:"#321E2B",padding:15,borderRadius:14,gap:10},error:{color:"#FFC2C2"},retry:{color:"#C7F36B",fontWeight:"800"}});
+
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#0B1020" }, content: { padding: 22, paddingBottom: 40, gap: 15 },
+  back: { color: "#AAB4C7", fontSize: 13, marginBottom: 12 }, kicker: { color: "#C7F36B", fontSize: 10, fontWeight: "800", letterSpacing: 1.5 },
+  title: { color: "#F7F8FC", fontSize: 28, fontWeight: "900", marginTop: -8 }, sub: { color: "#AAB4C7", fontSize: 13, lineHeight: 20 },
+  polling: { color: "#C7F36B", fontSize: 11, lineHeight: 17 }, card: { backgroundColor: "#11192A", borderColor: "#202B41", borderWidth: 1, borderRadius: 17, padding: 16, gap: 11 },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }, subject: { color: "#F1F4FA", fontSize: 15, fontWeight: "800", flex: 1 },
+  pill: { borderRadius: 20, paddingHorizontal: 9, paddingVertical: 6 }, done: { backgroundColor: "#18392F" }, failed: { backgroundColor: "#40242D" }, pending: { backgroundColor: "#333044" },
+  pillText: { color: "#E6F0E9", fontSize: 9, fontWeight: "900" }, id: { color: "#7F8AA2", fontSize: 10 },
+  rowBottom: { flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center" }, date: { color: "#929DB2", fontSize: 11 }, score: { color: "#C7F36B", fontSize: 12, fontWeight: "800" },
+  reason: { color: "#FFB7B7", fontSize: 12, lineHeight: 17 }, empty: { padding: 24, backgroundColor: "#11192A", borderRadius: 18, gap: 8 }, emptyTitle: { color: "#F1F4FA", fontSize: 17, fontWeight: "800" },
+  errorBox: { backgroundColor: "#321E2B", padding: 15, borderRadius: 14, gap: 10 }, error: { color: "#FFC2C2" }, retry: { color: "#C7F36B", fontWeight: "800" }
+});
