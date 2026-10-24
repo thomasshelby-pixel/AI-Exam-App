@@ -8,7 +8,7 @@ Android-first student companion for the existing CA Exam Checker AI account. The
 - PDF answer-sheet submission through the existing evaluation service.
 - Evaluation history/details with pending-status auto-refresh and server-authoritative marks.
 - Authenticated checked-copy and detailed report PDF downloads.
-- Notification inbox, unread count, mark-one-read and mark-all-read.
+- Notification inbox, unread count, mark-one-read and mark-all-read, plus server-backed email/in-app notification preferences.
 - Credits/usage overview and recent credit ledger. Purchase checkout opens the existing website so the backend owns payment verification and credit fulfilment.
 
 ## Stack
