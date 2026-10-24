@@ -9,7 +9,7 @@ on:
 
 jobs:
   android-debug-apk:
-    name: Typecheck and build Android debug APK
+    name: Typecheck and build standalone Android APK
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -40,16 +40,16 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --non-interactive
 
-      - name: Build installable debug APK
+      - name: Build standalone release APK with bundled JavaScript
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: ca-exam-checker-ai-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: ca-exam-checker-ai-standalone-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
