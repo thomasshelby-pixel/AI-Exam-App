@@ -7,6 +7,8 @@
 - Answer-sheet PDF submission with disclaimer acknowledgement, evaluation history/details with automatic status refresh, and authenticated checked-copy/report PDF downloads.
 - Native in-app notification inbox with server-backed unread count, mark-one-read and mark-all-read actions, plus server-backed notification preference toggles.
 - Credit balance, monthly free allowance, paid-credit balance and recent ledger display; paid-credit checkout continues through the existing website.
+- Notification preference toggles saved by the server.
+- Self-service student account deletion through the server's provider-aware identity verification, explicit DELETE confirmation and session clearing.
 
 ## Remaining release gates
 - Run a clean SDK 58 dependency install, Expo dependency compatibility check, Expo Doctor, TypeScript typecheck, Android bundle export and release APK build in CI.
