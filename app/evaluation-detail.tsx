@@ -9,7 +9,17 @@ type RecheckRequest = { id?: string; request_type?: string; requestType?: string
 type MarkingComponentView = { componentId?: string; componentType?: string; expectedRequirement?: string; studentEvidence?: string; assessment?: string; marksAvailable?: number; marksAwarded?: number; marksDeducted?: number; deductionReason?: string; supportingProvision?: string; idealAnswer?: string; whatWasMissing?: string };
 type QuestionFeedback = { questionNumber?: string; subQuestion?: string; topic?: string; maximumMarks?: number; marksAwarded?: number; marksLost?: number; status?: string; detailedFeedback?: string; reasonForDeduction?: string; missingRequirements?: string[]; applicableProvisions?: string[]; markingComponents?: MarkingComponentView[]; structuredEvidence?: { markingComponents?: MarkingComponentView[]; overallReason?: string }; stepMarkingBreakdown?: Array<{ step?: string; marksAwarded?: number; maximumMarks?: number; remarks?: string }> };
 type ModeBreakdown = { totalMarks?: number; maximumMarks?: number; percentage?: number; grade?: string; displayName?: string; philosophy?: string };
-type EvaluationReportData = { overallSummary?: string; strengths?: string[]; weaknesses?: string[]; recommendations?: string[]; questions?: QuestionFeedback[]; topicPerformance?: Array<{ topic?: string; marksObtained?: number; maximumMarks?: number; percentage?: number; status?: string }>; presentationAnalysis?: { score?: number; feedback?: string; workingNotesQuality?: string; handwritingLegibility?: string }; accuracyAnalysis?: { calculationAccuracy?: string; provisionsAccuracy?: string; methodologyCorrectness?: string }; evaluationStandardDisclaimer?: string; modeBreakdown?: { standard?: ModeBreakdown; strict?: ModeBreakdown; moderate?: ModeBreakdown }; scoreCalculationAudit?: Array<{ questionNumber?: string; maxMarks?: number; awardedMarks?: number; deductions?: number; componentsCount?: number }>; checkingMode?: string };
+type EvaluationReportData = { version?: string; overallSummary?: string; strengths?: string[]; weaknesses?: string[]; recommendations?: string[]; questions?: QuestionFeedback[]; topicPerformance?: Array<{ topic?: string; marksObtained?: number; maximumMarks?: number; percentage?: number; status?: string }>; presentationAnalysis?: { score?: number; feedback?: string; workingNotesQuality?: string; handwritingLegibility?: string }; accuracyAnalysis?: { calculationAccuracy?: string; provisionsAccuracy?: string; methodologyCorrectness?: string }; evaluationStandardDisclaimer?: string; modeBreakdown?: { standard?: ModeBreakdown; strict?: ModeBreakdown; moderate?: ModeBreakdown }; scoreCalculationAudit?: Array<{ questionNumber?: string; maxMarks?: number; awardedMarks?: number; deductions?: number; componentsCount?: number }>; checkingMode?: string };
+
+type RecheckEvidence = {
+  success?: boolean;
+  paper?: { level?: string; subjectName?: string; paper?: string; attempt?: string };
+  dispute?: { questionNumber?: string; subQuestion?: string; requestType?: string; reason?: string; studentNotes?: string; createdAt?: string; status?: string; reviewerNotes?: string; adjustedMarks?: number | null } | null;
+  candidateAnswer?: { pages?: number[]; studentEvidence?: string; originalDownloadUrl?: string; checkedCopyDownloadUrl?: string };
+  referenceMaterial?: { materialTitle?: string; questionPaperExcerpt?: string; suggestedAnswerExcerpt?: string; markingSchemeExcerpt?: string; contentHash?: string; retrievedCharacterCount?: number };
+  originalEvaluation?: QuestionFeedback | null;
+  currentScore?: { totalMarks?: number; maximumMarks?: number; percentage?: number; grade?: string; version?: string };
+};
 
 type Detail = {
   id: string;
@@ -25,6 +35,7 @@ type Detail = {
   error_message?: string;
   resultJson?: unknown;
   raw_result_json?: string;
+  version?: string;
 };
 
 const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "REJECTED", "NEEDS_REVIEW", "CANCELLED", "PERSISTENCE_FAILED"]);
@@ -45,6 +56,12 @@ export default function EvaluationDetailScreen() {
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
   const [comparisonQuestion, setComparisonQuestion] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<"standard" | "strict" | "moderate">("standard");
+  const [verifyingConsistency, setVerifyingConsistency] = useState(false);
+  const [consistencyNotice, setConsistencyNotice] = useState("");
+  const [consistencyError, setConsistencyError] = useState("");
+  const [evidence, setEvidence] = useState<RecheckEvidence | null>(null);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) {
@@ -90,22 +107,44 @@ export default function EvaluationDetailScreen() {
     return () => clearTimeout(timer);
   }, [data, load]);
 
-  async function download(kind: "checked-copy" | "report") {
+  async function download(kind: "checked-copy" | "report" | "original", version?: "v1" | "v2") {
     if (!id) return;
     setError("");
     setDownloading(true);
     try {
-      const suffix = kind === "checked-copy" ? "download-checked-copy" : "download-report";
-      const filename = `AI-Exam-${kind}-${id.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
-      await downloadAndShareAuthenticatedFile(
-        `/api/student/evaluations/${encodeURIComponent(id)}/${suffix}`,
-        filename
-      );
+      const suffix = kind === "checked-copy" ? "download-checked-copy" : kind === "report" ? "download-report" : "download-original";
+      const cleanId = id.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = "AI-Exam-" + kind + (version ? "-" + version : "") + "-" + cleanId + ".pdf";
+      const path = `/api/student/evaluations/${encodeURIComponent(id)}/${suffix}` + (version ? "?version=" + version : "");
+      await downloadAndShareAuthenticatedFile(path, filename);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not download the evaluation PDF.");
     } finally {
       setDownloading(false);
     }
+  }
+
+  async function verifyConsistency() {
+    if (!id) return;
+    setVerifyingConsistency(true); setConsistencyNotice(""); setConsistencyError(""); setError("");
+    try {
+      const result = await apiRequest<{ success?: boolean; message?: string; error?: string }>(`/api/student/evaluations/${encodeURIComponent(id)}/verify-consistency`, { method: "POST", body: JSON.stringify({}) });
+      setConsistencyNotice(result.message || "The server completed its consistency verification.");
+      await load();
+    } catch (e) {
+      setConsistencyError(e instanceof Error ? e.message : "Consistency verification could not be completed.");
+    } finally { setVerifyingConsistency(false); }
+  }
+
+  async function loadEvidence() {
+    if (!id) return;
+    setEvidenceLoading(true); setConsistencyError(""); setError("");
+    try {
+      const result = await apiRequest<RecheckEvidence>(`/api/student/evaluations/${encodeURIComponent(id)}/recheck-evidence`);
+      setEvidence(result); setEvidenceOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load reference evidence for this evaluation.");
+    } finally { setEvidenceLoading(false); }
   }
 
   async function submitRecheck() {
@@ -261,15 +300,40 @@ export default function EvaluationDetailScreen() {
             ) : null}
             {data.status === "COMPLETED" ? (
               <>
-                <Pressable disabled={downloading} style={[s.secondaryButton, downloading && { opacity: 0.65 }]} onPress={() => void download("checked-copy")}>
-                  <Text style={s.secondaryButtonText}>{downloading ? "Preparing PDF…" : "Download checked copy PDF"}</Text>
+                <Pressable disabled={downloading} style={[s.secondaryButton, downloading && { opacity: 0.65 }]} onPress={() => void download("original")}>
+                  <Text style={s.secondaryButtonText}>{downloading ? "Preparing PDF…" : "Download original answer sheet PDF"}</Text>
                 </Pressable>
+                <Pressable disabled={downloading} style={[s.secondaryButton, downloading && { opacity: 0.65 }]} onPress={() => void download("checked-copy")}>
+                  <Text style={s.secondaryButtonText}>{downloading ? "Preparing PDF…" : "Download latest checked copy PDF"}</Text>
+                </Pressable>
+                {report?.version === "v2" ? <Pressable disabled={downloading} style={[s.secondaryButton, downloading && { opacity: 0.65 }]} onPress={() => void download("checked-copy", "v1")}>
+                  <Text style={s.secondaryButtonText}>Download archived v1 checked copy</Text>
+                </Pressable> : null}
                 <Pressable disabled={downloading} style={[s.secondaryButton, downloading && { opacity: 0.65 }]} onPress={() => void download("report")}>
-                  <Text style={s.secondaryButtonText}>Download detailed report PDF</Text>
+                  <Text style={s.secondaryButtonText}>{downloading ? "Preparing PDF…" : "Download detailed report PDF"}</Text>
                 </Pressable>
               </>
             ) : null}
             <Text style={s.note}>PDF downloads use your authenticated session and existing student endpoints. Availability remains subject to server permissions, disclaimer and evaluation status.</Text>
+            {data.status === "COMPLETED" ? <View style={s.reportCard}>
+              <Text style={s.reportHeading}>Evaluation integrity</Text>
+              <Text style={s.note}>Run the server-side consistency check when the report needs certification or a checked-copy download is blocked. A flagged result may require authorised review.</Text>
+              <Pressable disabled={verifyingConsistency} onPress={() => { void verifyConsistency(); }} style={[s.secondaryButton, verifyingConsistency && { opacity: 0.6 }]}><Text style={s.secondaryButtonText}>{verifyingConsistency ? "Verifying…" : "Verify evaluation consistency"}</Text></Pressable>
+              {consistencyNotice ? <Text style={s.recheckSuccess}>{consistencyNotice}</Text> : null}
+              {consistencyError ? <Text accessibilityRole="alert" style={s.error}>{consistencyError}</Text> : null}
+              <Pressable disabled={evidenceLoading} onPress={() => evidenceOpen ? setEvidenceOpen(false) : void loadEvidence()} style={s.secondaryButton}><Text style={s.secondaryButtonText}>{evidenceLoading ? "Loading evidence…" : evidenceOpen ? "Hide reference evidence" : "View question/reference evidence"}</Text></Pressable>
+              {evidenceOpen && evidence ? <View style={s.summaryBlock}>
+                <Text style={s.reportSubheading}>Reference material</Text>
+                <Text style={s.body}>{evidence.referenceMaterial?.materialTitle || "Reference details returned by the server"}</Text>
+                {evidence.paper ? <Text style={s.note}>{evidence.paper.level || ""} · {evidence.paper.subjectName || ""} · {evidence.paper.paper || ""} · {evidence.paper.attempt || ""}</Text> : null}
+                {evidence.dispute ? <View style={s.markingComponent}><Text style={s.reportSubheading}>Most recent recheck request · {evidence.dispute.status || "—"}</Text><Text style={s.body}>{evidence.dispute.reason || evidence.dispute.studentNotes || "No reason recorded."}</Text>{evidence.dispute.reviewerNotes ? <Text style={s.note}>Reviewer notes: {evidence.dispute.reviewerNotes}</Text> : null}{evidence.dispute.adjustedMarks !== undefined && evidence.dispute.adjustedMarks !== null ? <Text style={s.note}>Adjusted marks: {evidence.dispute.adjustedMarks}</Text> : null}</View> : null}
+                {evidence.candidateAnswer?.studentEvidence ? <View><Text style={s.componentLabel}>Student evidence</Text><Text style={s.body}>{evidence.candidateAnswer.studentEvidence}</Text></View> : null}
+                {evidence.referenceMaterial?.questionPaperExcerpt ? <View><Text style={s.componentLabel}>Question paper excerpt</Text><Text style={s.note}>{evidence.referenceMaterial.questionPaperExcerpt}</Text></View> : null}
+                {evidence.referenceMaterial?.suggestedAnswerExcerpt ? <View><Text style={s.componentLabel}>Official suggested answer excerpt</Text><Text style={s.note}>{evidence.referenceMaterial.suggestedAnswerExcerpt}</Text></View> : null}
+                {evidence.referenceMaterial?.markingSchemeExcerpt ? <View><Text style={s.componentLabel}>Marking scheme excerpt</Text><Text style={s.note}>{evidence.referenceMaterial.markingSchemeExcerpt}</Text></View> : null}
+                {evidence.referenceMaterial?.contentHash ? <Text style={s.note}>Reference hash: {evidence.referenceMaterial.contentHash}</Text> : null}
+              </View> : null}
+            </View> : null}
             {data.status === "COMPLETED" ? (
               <View style={s.recheckCard}>
                 <Text style={s.cardTitle}>Request a recheck</Text>
