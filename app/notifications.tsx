@@ -99,6 +99,9 @@ export default function NotificationsScreen() {
             <Text style={s.markAllText}>{marking === "all" ? "Saving…" : "Mark all read"}</Text>
           </Pressable>
         </View>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/notification-preferences")} style={s.settingsLink}>
+          <Text style={s.settingsIcon}>⚙</Text><Text style={s.settingsText}>Notification preferences</Text><Text style={s.settingsArrow}>›</Text>
+        </Pressable>
         {busy && !items.length ? <ActivityIndicator color="#C7F36B" size="large" /> : null}
         {error ? <View style={s.errorBox}><Text accessibilityRole="alert" style={s.error}>{error}</Text><Pressable onPress={() => { void load(); }}><Text style={s.retry}>Try again</Text></Pressable></View> : null}
         {notice ? <Text style={s.notice}>{notice}</Text> : null}
@@ -137,6 +140,10 @@ const s = StyleSheet.create({
   markAll: { borderWidth: 1, borderColor: "#3A4966", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   markAllText: { color: "#C7F36B", fontSize: 11, fontWeight: "800" },
   disabled: { opacity: 0.55 },
+  settingsLink: { flexDirection: "row", alignItems: "center", gap: 10, padding: 13, backgroundColor: "#11192A", borderColor: "#202B41", borderWidth: 1, borderRadius: 13 },
+  settingsIcon: { color: "#C7F36B", fontSize: 17 },
+  settingsText: { flex: 1, color: "#AAB4C7", fontSize: 12, fontWeight: "700" },
+  settingsArrow: { color: "#718098", fontSize: 22 },
   card: { backgroundColor: "#11192A", borderColor: "#202B41", borderWidth: 1, borderRadius: 17, padding: 16, gap: 11 },
   unreadCard: { borderColor: "#8EA94D", backgroundColor: "#131F2C" },
   cardHead: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
