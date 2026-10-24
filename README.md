@@ -20,7 +20,11 @@ npm install
 npx expo start
 ```
 
-Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL` to the deployed AI-Exam API base URL. Never put API keys, service-account credentials, JWT signing secrets, or model-provider secrets in `EXPO_PUBLIC_*` variables.
+The mobile app defaults to the production API at `https://caexamcheckerai.com`; this matches the existing website/backend deployment. For staging or local development, copy `.env.example` to `.env` and override `EXPO_PUBLIC_API_BASE_URL` with that environment’s base URL (no trailing slash). Never put API keys, service-account credentials, JWT signing secrets, or model-provider secrets in `EXPO_PUBLIC_*` variables.
+
+## Build verification
+
+The repository’s GitHub Actions check runs the TypeScript typecheck and exports the Android JavaScript bundle. These checks catch app-code and Metro bundling errors, but they do not replace APK installation and real-device smoke tests. The website/backend repo remains unchanged.
 
 ## Safety rules
 
