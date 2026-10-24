@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, clearSession } from "@/src/lib/api";
@@ -16,6 +16,7 @@ export default function DashboardScreen() {
   const [data, setData] = useState<ProfileResponse | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(true);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const load = useCallback(async () => {
     setError("");
@@ -33,6 +34,14 @@ export default function DashboardScreen() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void apiRequest<{ unreadCount?: number }>("/api/student/notifications")
+      .then((response) => { if (active) setUnreadNotifications(Number(response.unreadCount) || 0); })
+      .catch(() => { if (active) setUnreadNotifications(0); });
+    return () => { active = false; };
+  }, []));
 
   async function logout() {
     try { await apiRequest("/api/auth/logout", { method: "POST" }); } catch {}
@@ -56,6 +65,22 @@ export default function DashboardScreen() {
           <View style={styles.stat}><Text style={styles.statNumber}>{data.profile?.completedEvaluations ?? "—"}</Text><Text style={styles.statLabel}>Evaluated</Text></View>
         </View>
         <Text style={styles.section}>Quick access</Text>
+        <Pressable style={styles.action} onPress={() => router.push("/notifications")}>
+          <Text style={styles.actionIcon}>🔔</Text>
+          <View style={styles.actionCopy}>
+            <Text style={styles.actionTitle}>Notifications</Text>
+            <Text style={styles.actionSub}>{unreadNotifications > 0 ? unreadNotifications + " unread notice(s)" : "Account updates and alerts"}</Text>
+          </View>
+          <Text style={styles.arrow}>{unreadNotifications > 0 ? (unreadNotifications > 99 ? "99+" : String(unreadNotifications)) : "›"}</Text>
+        </Pressable>
+        <Pressable style={styles.action} onPress={() => router.push("/credits")}>
+          <Text style={styles.actionIcon}>💳</Text>
+          <View style={styles.actionCopy}>
+            <Text style={styles.actionTitle}>Credits & usage</Text>
+            <Text style={styles.actionSub}>Free evaluations, paid credits and ledger</Text>
+          </View>
+          <Text style={styles.arrow}>›</Text>
+        </Pressable>
         <Pressable style={styles.action} onPress={() => router.push("/submit-copy")}><Text style={styles.actionIcon}>📝</Text><View style={styles.actionCopy}><Text style={styles.actionTitle}>Submit answer sheet</Text><Text style={styles.actionSub}>Upload a PDF for evaluation</Text></View><Text style={styles.arrow}>›</Text></Pressable>
         <Pressable style={styles.action} onPress={() => router.push("/evaluations")}><Text style={styles.actionIcon}>📑</Text><View style={styles.actionCopy}><Text style={styles.actionTitle}>Evaluations & results</Text><Text style={styles.actionSub}>Check status, marks and feedback</Text></View><Text style={styles.arrow}>›</Text></Pressable>
         <Pressable style={styles.action} onPress={() => router.push("/profile")}><Text style={styles.actionIcon}>👤</Text><View style={styles.actionCopy}><Text style={styles.actionTitle}>Student profile</Text><Text style={styles.actionSub}>Review course and exam attempt</Text></View><Text style={styles.arrow}>›</Text></Pressable>
