@@ -10,6 +10,7 @@ Android-first student companion for the existing CA Exam Checker AI account. The
 - Authenticated checked-copy and detailed report PDF downloads.
 - Notification inbox, unread count, mark-one-read and mark-all-read, plus server-backed email/in-app notification preferences.
 - Credits/usage overview and recent credit ledger. Purchase checkout opens the existing website so the backend owns payment verification and credit fulfilment.
+- Server-backed notification preferences and secure self-service account deletion using the account's required password, email OTP or registered-email verification method.
 
 ## Stack
 - Expo SDK 58, React Native 0.88, React 19.3 and TypeScript 6.
