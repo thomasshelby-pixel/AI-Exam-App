@@ -1,14 +1,42 @@
 {
   "expo": {
-    "name": "AI Exam",
-    "slug": "ai-exam-app",
-    "scheme": "aiexam",
+    "name": "CA Exam Checker AI",
+    "slug": "ca-exam-checker-ai",
+    "scheme": "caexamcheckerai",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "ios": { "supportsTablet": true, "bundleIdentifier": "com.caexamchecker.aiapp" },
-    "android": { "package": "com.caexamchecker.aiapp" },
-    "plugins": ["expo-router", "expo-secure-store", "expo-document-picker"]
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.caexamchecker.aiapp"
+    },
+    "android": {
+      "package": "com.caexamchecker.aiapp",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/monochrome-icon.png",
+        "backgroundColor": "#071126"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-document-picker",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 270,
+          "resizeMode": "contain",
+          "backgroundColor": "#071126",
+          "dark": {
+            "image": "./assets/splash.png",
+            "backgroundColor": "#071126"
+          }
+        }
+      ]
+    ],
+    "icon": "./assets/icon.png",
+    "primaryColor": "#0B1C3B"
   }
 }

@@ -1,26 +1,24 @@
-# Integration status
+# Student App integration status
 
-## Verified against AI-Exam main source
+## Security and authentication
+- Existing student auth APIs remain authoritative. Login/register pass a persistent SecureStore installation ID; authenticated requests send X-Device-Id.
+- Session token and installation ID use SecureStore. API calls send Bearer auth and clear the session only on known invalid/expired session responses.
+- The MFA challenge accepts a TOTP code or server-verified single-use recovery code.
+- Security screen exposes active sessions/revoke others, MFA status/setup, recovery-code regeneration, trusted-device revocation and password change.
+- Google sign-in is not offered because the active backend routes return GOOGLE_SIGNIN_DISCONTINUED.
+- Verify production JWT_SECRET configuration; the backend source has a hard-coded fallback that must not be used in production.
 
-- Auth router is mounted at `/api/auth`.
-- Student router is mounted at `/api/student` and applies `authenticateToken` to student routes.
-- `POST /api/auth/login` accepts email, password and optional portalScope. A successful response includes `token` and a user object; MFA may return `mfaRequired` instead.
-- `GET /api/student/profile` returns the signed-in user, profile and credit/evaluation summaries.
-- `GET /api/student/evaluations` returns the signed-in student's evaluation records.
-- `POST /api/auth/logout` exists; client clears its secure token regardless of logout network outcome.
+## Student routes integrated
+- Profile and avatar, credits/credit lots, native Razorpay order creation and payment verification, notifications/read state/preferences, account deletion and forgot/reset password.
+- Paper specification uses official attempt and reference-material checks; answer-sheet submission, history/detail/status polling, checked-copy/report download and review/recheck use the existing student routes.
+- Institute join, active enrolments, institute materials and tests use authenticated membership-scoped routes.
+- Study planner uses server curriculum, chapter strengths, schedules, roadmap, saved plans and progress endpoints.
+- MCQ Arena uses the authenticated MCQ service for curriculum, sessions, answer scoring, finish, progress, bookmarks and mistake vault.
+- Personal examiner profile, promo/referral redemption, support tickets and student review use existing student endpoints.
 
-## Mobile implementation now present
-
-- Student-only sign-in uses the verified existing login endpoint and stores its token in SecureStore.
-- Dashboard loads profile and evaluation list from existing endpoints.
-- Evaluation history displays authoritative status and marks.
-- Profile screen displays existing profile data without pretending edits have been saved.
-
-## Still blocking production readiness
-
-- MFA completion/trusted-device flows need a dedicated mobile UX; admin accounts are intentionally rejected by the app.
-- Registration OTP flow needs full route/payload contract and error-state implementation.
-- Profile editing must map every field to the server's exact validation/persistence behavior.
-- Answer-sheet upload and checked-copy download need actual route and multipart/storage contracts verified.
-- API URL must be configured for the target environment.
-- Typecheck, Expo build and real device tests are not run by the GitHub file API. Do not label this release-ready until they pass.
+## Remaining release/validation gates
+- Run Expo dependency compatibility, Expo Doctor, TypeScript, Android bundle export/prebuild and standalone release APK build.
+- Real Android tests still required for payments, MFA/trusted devices, device limits, institute submissions, rechecks, downloads, session expiry and notification persistence.
+- Uploads are capped at 30 MB with current base64 JSON transport and a 50 MB server parser limit. Multipart/streaming is needed for robust larger files.
+- Profile API does not currently expose a validated canonical exam-attempt update field.
+- MCQ/planner/evaluation features remain subject to server feature gates and account eligibility; CA is the only enabled answer-sheet checking type.

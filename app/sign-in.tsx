@@ -2,7 +2,7 @@ import { Link, router } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { apiRequest, ApiError, saveSessionToken } from "@/src/lib/api";
+import { apiRequest, ApiError, saveSessionToken, saveDeviceTrustToken, API_BASE_URL, getOrCreateDeviceId } from "@/src/lib/api";
 
 export default function SignInScreen() {
   const [email, setEmail] = useState("");
@@ -16,7 +16,7 @@ export default function SignInScreen() {
       setError("Enter your email and password to continue.");
       return;
     }
-    if (!process.env.EXPO_PUBLIC_API_BASE_URL?.trim()) {
+    if (!API_BASE_URL) {
       setError("App setup is incomplete: the existing AI-Exam API base URL has not been configured.");
       return;
     }
@@ -26,12 +26,14 @@ export default function SignInScreen() {
         token?: string;
         mfaRequired?: boolean;
         mfaSessionToken?: string;
+        trustToken?: string;
+        deviceId?: string;
         message?: string;
         error?: string;
         user?: { id: string; email: string; fullName: string; role: string; status: string };
       }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password, portalScope: "STUDENT" })
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, portalScope: "STUDENT", deviceId: await getOrCreateDeviceId(), deviceName: Platform.OS === "android" ? "Android Student App" : "Student App" })
       });
       if (result.mfaRequired) {
         if (result.mfaSessionToken) { router.push({ pathname: "/mfa-verify", params: { token: result.mfaSessionToken, message: result.message || "Enter the 6-digit authenticator code." } }); return; }
@@ -41,6 +43,7 @@ export default function SignInScreen() {
       if (!result.token || !result.user) throw new Error("The server response did not include a valid session.");
       if (result.user.role !== "STUDENT") throw new Error("The mobile app currently supports student accounts only. Please use the appropriate web portal.");
       await saveSessionToken(result.token);
+      await saveDeviceTrustToken(result.trustToken || null);
       router.replace("/dashboard");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Unable to sign in right now.");
@@ -61,6 +64,7 @@ export default function SignInScreen() {
           <TextInput value={email} onChangeText={setEmail} placeholder="you@example.com" placeholderTextColor="#66738A" autoCapitalize="none" keyboardType="email-address" autoComplete="email" style={styles.input} accessibilityLabel="Email address" />
           <Text style={styles.label}>PASSWORD</Text>
           <TextInput value={password} onChangeText={setPassword} placeholder="Enter your password" placeholderTextColor="#66738A" secureTextEntry autoComplete="password" style={styles.input} accessibilityLabel="Password" />
+          <Link href="/forgot-password" style={styles.forgot}>Forgot password?</Link>
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Pressable onPress={signIn} disabled={busy} style={[styles.button, busy && styles.disabled]}>
             {busy ? <ActivityIndicator color="#101827" /> : <Text style={styles.buttonText}>Sign in securely  →</Text>}
@@ -88,6 +92,7 @@ const styles = StyleSheet.create({
   button: { marginTop: 22, minHeight: 54, borderRadius: 15, backgroundColor: "#C7F36B", alignItems: "center", justifyContent: "center" },
   disabled: { opacity: 0.7 },
   buttonText: { color: "#101827", fontWeight: "800", fontSize: 15 },
+  forgot: { color: "#C7F36B", alignSelf: "flex-end", marginTop: 2, marginBottom: 8, fontSize: 12, fontWeight: "800" },
   register: { color: "#C7F36B", fontSize: 12, fontWeight: "800", marginTop: 18, textAlign: "center" },
   security: { color: "#748199", fontSize: 11, lineHeight: 17, marginTop: 18 }
 });

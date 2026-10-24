@@ -1,6 +1,8 @@
-import { Link } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Link, router } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { API_BASE_URL, apiRequest, clearSession, getSessionToken } from "@/src/lib/api";
 
 const features = [
   { icon: "📚", title: "Study dashboard", detail: "Your CA course, exam attempt and study progress" },
@@ -10,13 +12,53 @@ const features = [
 ];
 
 export default function HomeScreen() {
-  const apiConfigured = Boolean(process.env.EXPO_PUBLIC_API_BASE_URL?.trim());
+  const apiConfigured = Boolean(API_BASE_URL);
+  const [restoringSession, setRestoringSession] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function restoreSession() {
+      try {
+        const token = await getSessionToken();
+        if (!token) {
+          if (active) setRestoringSession(false);
+          return;
+        }
+
+        const result = await apiRequest<{
+          user?: { role?: string; status?: string; requiresProfileCompletion?: boolean } | null;
+        }>("/api/auth/me");
+
+        if (!active) return;
+        if (result.user?.role === "STUDENT" && result.user.status !== "SUSPENDED") {
+          router.replace(result.user.requiresProfileCompletion ? "/profile" : "/dashboard");
+          return;
+        }
+
+        await clearSession();
+        if (active) setRestoringSession(false);
+      } catch {
+        // Preserve a possibly valid session during a network outage; let the student retry sign-in.
+        if (active) setRestoringSession(false);
+      }
+    }
+
+    void restoreSession();
+    return () => { active = false; };
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
+      {restoringSession ? (
+        <View style={styles.restoring}>
+          <Image source={require("../assets/splash.png")} style={styles.loadingBrandImage} resizeMode="contain" />
+          <ActivityIndicator color="#78B9FF" size="small" />
+          <Text style={styles.restoringText}>Opening your secure workspace</Text>
+          <View style={styles.loadingRule}><View style={styles.loadingRuleFill} /></View>
+        </View>
+      ) : <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.topline}>
-          <View style={styles.logo}><Text style={styles.logoText}>AI</Text></View>
+          <View style={styles.logo}><Image source={require("../assets/icon.png")} style={styles.logoImage} resizeMode="cover" /></View>
           <Text style={styles.brand}>CA EXAM CHECKER</Text>
           <View style={styles.status}><View style={[styles.dot, apiConfigured ? styles.dotReady : styles.dotSetup]} /><Text style={styles.statusText}>{apiConfigured ? "API SET" : "SETUP"}</Text></View>
         </View>
@@ -45,17 +87,22 @@ export default function HomeScreen() {
           ))}
         </View>
         <View style={styles.footer}><Text style={styles.footerText}>AI EXAM APP · MOBILE FOUNDATION</Text><Text style={styles.footerSub}>Your results stay governed by the existing evaluation system.</Text></View>
-      </ScrollView>
+      </ScrollView>}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#0B1020" },
+  restoring: { flex: 1, alignItems: "center", justifyContent: "center", gap: 20, padding: 28, backgroundColor: "#071126" },
+  loadingBrandImage: { width: 280, height: 280 },
+  loadingRule: { width: 136, height: 3, borderRadius: 3, backgroundColor: "#1B2A45", overflow: "hidden" },
+  loadingRuleFill: { width: "58%", height: 3, borderRadius: 3, backgroundColor: "#78B9FF" },
+  restoringText: { color: "#AAB4C7", fontSize: 13, fontWeight: "600" },
   content: { padding: 22, paddingBottom: 42 },
   topline: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 38 },
-  logo: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#C7F36B", alignItems: "center", justifyContent: "center" },
-  logoText: { color: "#111827", fontWeight: "900", fontSize: 17 },
+  logo: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#0B1C3B", borderColor: "#315D91", borderWidth: 1, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  logoImage: { width: 46, height: 46 },
   brand: { color: "#E8ECF5", fontSize: 11, letterSpacing: 1.5, fontWeight: "800", flex: 1 },
   status: { flexDirection: "row", gap: 6, alignItems: "center", borderColor: "#263149", borderWidth: 1, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 6 },
   dot: { width: 6, height: 6, borderRadius: 4 },
