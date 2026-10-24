@@ -19,7 +19,7 @@ type Group = "GROUP_1" | "GROUP_2" | "ALL";
 type MaterialType = "MTP" | "PYQ" | "MODEL_TEST_PAPER";
 type Mode = "standard" | "strict" | "lenient";
 type Paper = { key: string; name: string; number: number; group?: "GROUP_1" | "GROUP_2"; level: Level };
-type Attempt = { id?: string; caLevel?: string; attemptLabel?: string; attemptCode?: string; active?: boolean; isActive?: boolean; sequenceOrder?: number };
+type Attempt = { id?: string; caLevel?: string; attemptLabel?: string; displayName?: string; attemptCode?: string; active?: boolean; isActive?: boolean; sequenceOrder?: number };
 type StudentProfile = {
   caLevel?: string;
   ca_level?: string;
@@ -146,10 +146,6 @@ export default function SubmitCopyScreen() {
     if (!availablePapers.length) return;
     if (!availablePapers.some((paper) => paper.key === subjectKey)) setSubjectKey(availablePapers[0].key);
   }, [availablePapers, subjectKey]);
-
-  useEffect(() => {
-    if (!courseLoading && !courseLoadError && level && !attemptLoading) return;
-  }, [courseLoading, courseLoadError, level, attemptLoading]);
 
   useEffect(() => {
     if (courseLoading || courseLoadError || !level) return;
