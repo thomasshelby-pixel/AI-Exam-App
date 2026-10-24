@@ -1,27 +1,30 @@
 # Integration status
 
 ## Server contracts inspected
-- Auth is mounted at /api/auth; student routes are mounted at /api/student and authenticate requests.
-- Student login uses POST /api/auth/login with portalScope STUDENT; an enrolled authenticator can return an MFA challenge session token. Registration uses POST /api/auth/register, POST /api/auth/resend-otp and POST /api/auth/verify-otp.
-- Profile read/write uses GET /api/student/profile and PUT /api/student/profile. Only backend-supported fields are editable.
-- Disclaimer acknowledgement uses GET /api/student/disclaimer/status and POST /api/student/disclaimer/acknowledge.
-- Evaluation submission uses POST /api/student/evaluate; it remains subject to backend feature access, institute enrollment, reference-material and credit checks.
-- History/details use GET /api/student/evaluations and GET /api/student/evaluations/:id; downloads use GET /api/student/evaluations/:id/download-checked-copy and GET /api/student/evaluations/:id/download-report.
-- Credits use GET /api/student/credits and GET /api/student/credit-lots; notifications use GET /api/student/notifications, PUT /api/student/notifications/:id/read, PUT /api/student/notifications/read-all and notification-preferences routes.
+- Auth is mounted at /api/auth; student routes are mounted at /api/student and require authentication.
+- Student login uses POST /api/auth/login with portalScope STUDENT; authenticator MFA can return a challenge session token. Registration uses POST /api/auth/register, POST /api/auth/resend-otp and POST /api/auth/verify-otp.
+- Profile read/write uses GET /api/student/profile and PUT /api/student/profile; only backend-supported fields are editable.
+- Permanent-access eligibility is read from the authenticated server response, not inferred from email or client state.
+- Evaluation submission uses POST /api/student/evaluate and remains subject to backend feature access, institute enrollment, reference-material and credit checks.
+- Official attempts use GET /api/public/attempts?level=LEVEL, reference availability uses GET /api/public/materials-check, and server-created Razorpay orders/payment verification use POST /api/payments/create-order and POST /api/payments/verify.
+- History/details use GET /api/student/evaluations and GET /api/student/evaluations/:id; checked-copy and report PDF downloads use authenticated server routes.
+- Credits use GET /api/student/credits; notifications use GET /api/student/notifications, PUT /api/student/notifications/:id/read, PUT /api/student/notifications/read-all and notification preference routes.
 
 ## Student mobile flows present
-- Login, registration email OTP, authenticator TOTP challenge, logout and session expiry.
-- Student dashboard and supported profile edits.
-- PDF submission, disclaimer acknowledgement, evaluation list/detail with automatic polling, authenticated PDF downloads.
-- Notification inbox with server-backed unread count, mark-one-read and mark-all-read; email, marketing email and in-app preference toggles.
-- Credit balance/allowance/ledger screen; checkout opens the existing website.
-- Notification preference GET/PUT routes; preference values update only after server confirmation.
-- Self-service deletion uses GET /api/student/delete-account/options, POST /api/student/delete-account/send-otp for accounts requiring email OTP, POST /api/student/delete-account/verify-otp, and POST /api/student/delete-account with the backend-required verification and explicit DELETE confirmation.
-- API client no longer clears the login token for every 401 response; it clears only for known invalid/expired session responses so a wrong password does not silently log the student out.
+- Login, email-OTP registration, authenticator TOTP challenge, logout and session expiry.
+- Dashboard and supported profile edits.
+- Website-aligned CA paper selection, server attempt list, official reference-material check, disclaimer acknowledgement and answer-sheet evaluation submission.
+- 30 MB app-side upload limit to keep base64 JSON payload below the current server's 50 MB request-body cap.
+- Native Razorpay purchase flow uses a server-created order, invokes native checkout, and verifies the payment signature on the server before reporting success or refreshing the credit ledger.
+- Permanent free access is displayed only if the server's authenticated entitlement response confirms it; the app never creates or grants that access.
+- Evaluation list/detail with automatic polling and authenticated PDF downloads.
+- Notification inbox with server-backed unread count/read state and email, marketing and in-app notification preference toggles.
+- Credit balance/allowance/ledger and secure self-service deletion.
 
-## Still to verify
-- Static route inspection does not replace end-to-end API tests. CI and a real Android device must verify login, OTP/TOTP, persisted notification read state, profile update, submission, polling, downloads and credit balance refresh.
-- Canonical exam-attempt selection is deliberately not implemented until the server exposes a validated attempt identifier.
-- The mobile app must never write credits, evaluation results or entitlements directly to Firestore or report success before the API confirms it.
-
-No website/backend source files were modified.
+## Release gates and known gaps
+- The Razorpay native module must be included in a standalone APK/custom development build. Expo Go cannot load native Razorpay.
+- Run TypeScript, Expo dependency compatibility, Expo Doctor, Android bundle export, Android prebuild and a standalone release APK build after these changes. Then test checkout with Razorpay test credentials and an Android device.
+- The main website permits selecting files up to 50 MB, but it transmits base64 in JSON with a 50 MB body-parser limit. This mobile UI caps source files at 30 MB to avoid constructing requests that exceed the currently inspected server limit. True 50 MB raw-file support should be added through streaming/multipart upload and hosting-specific size checks.
+- End-to-end validation is required for permanent-access identities and real payment fulfillment. No credits, payment success, or entitlement is written locally.
+- Native Google OAuth, MCQ Arena, the study planner and institute/coaching workflows are not yet full native screens. They must be implemented and tested before claiming full website feature parity.
+- The production website/backend repository has not been modified by this mobile change.
