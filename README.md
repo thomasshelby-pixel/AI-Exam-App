@@ -1,35 +1,35 @@
-# AI Exam App
+# CA Exam Checker AI — Student App
 
-Mobile companion app for CA Exam Checker AI. The existing `AI-Exam` website/backend remains the source of truth and is not modified by this repository.
+Android-first student companion for the existing CA Exam Checker AI account. The production website/backend remains the source of truth and is not modified by this repository.
 
-## Architecture
+## Features
+- Student email/password sign-in, registration with email OTP and authenticator TOTP MFA challenge.
+- Dashboard and supported profile updates.
+- PDF answer-sheet submission through the existing evaluation service.
+- Evaluation history/details with pending-status auto-refresh and server-authoritative marks.
+- Authenticated checked-copy and detailed report PDF downloads.
+- Notification inbox, unread count, mark-one-read and mark-all-read.
+- Credits/usage overview and recent credit ledger. Purchase checkout opens the existing website so the backend owns payment verification and credit fulfilment.
 
-- **Mobile client:** Expo + React Native + TypeScript.
-- **Backend:** Calls the existing authenticated AI-Exam API. Do not duplicate evaluation/marking logic or embed provider secrets/model weights in the app.
-- **Identity and data:** Reuse the existing account/session contract and canonical student records through backend APIs. Firestore access stays server-mediated unless the existing product's documented client contract explicitly requires otherwise.
-- **Evaluation:** Upload submissions through existing API routes; read authoritative evaluation status, results, credits and checked-copy links from the backend.
+## Stack
+- Expo SDK 58, React Native 0.88, React 19.3 and TypeScript 6.
+- API origin defaults to https://caexamcheckerai.com; EXPO_PUBLIC_API_BASE_URL can override it for staging.
+- Session tokens are stored using SecureStore. Sensitive account, evaluation, notification and credit writes go through authenticated server endpoints.
 
-## Development status
+## Local development (PowerShell)
+    npm.cmd install
+    npx.cmd expo install --fix
+    npx.cmd expo-doctor@latest
+    npx.cmd expo start -c
 
-Implemented student flows currently include sign-in, email-OTP registration, TOTP MFA verification, dashboard, profile editing, evaluation history/details, PDF submission and authenticated checked-copy/report downloads. These are integrated against inspected website API routes, but must still pass GitHub Actions, typecheck, Expo build and real-device/API smoke tests before being called release-ready. Institute Admin and Super Admin will be separate apps; this repository is Student App only.
-
-## Setup
-
-```bash
-npm install
-npx expo start
-```
-
-The mobile app defaults to the production API at `https://caexamcheckerai.com`; this matches the existing website/backend deployment. For staging or local development, copy `.env.example` to `.env` and override `EXPO_PUBLIC_API_BASE_URL` with that environment’s base URL (no trailing slash). Never put API keys, service-account credentials, JWT signing secrets, or model-provider secrets in `EXPO_PUBLIC_*` variables.
+Install the Expo Go build matching SDK 58 or use a standalone APK from a successful GitHub Actions run. Keep Metro open while using Expo Go. A standalone Android release build bundles the JavaScript and does not depend on Metro.
 
 ## Build verification
+GitHub Actions runs Expo dependency checks, Expo Doctor, typecheck, Android bundle export and a standalone release APK build. The APK artifact is retained for 14 days for private testing, not a Play Store release. Before release, test a real student account end-to-end, including sign-in/OTP/TOTP, profile edits, notification-read persistence, answer-sheet submission, status polling, checked-copy/report downloads and credit refresh.
 
-GitHub Actions typechecks the app, generates the Android project, and builds a standalone **release-mode APK with the JavaScript bundle included**, uploading it as the `ca-exam-checker-ai-standalone-apk` artifact for 14 days. Download it from a successful workflow run under **Actions → Mobile App Checks → Artifacts**. This APK is for private device testing, not a Play Store release. Test sign-in, email OTP, MFA, profile, PDF submission, evaluation status/results, and authenticated PDF downloads on a real Android device before release. The website/backend repo remains unchanged.
-
-## Safety rules
-
-1. Keep website repository `AI-Exam` unchanged from this app repo.
-2. Do not implement a second answer-marking engine.
-3. Do not write directly to Firestore collections that are authoritative for credits, results, users or evaluation records.
-4. Validate API responses and handle expired sessions and upload failures.
-5. Do not report an evaluation as complete until the backend confirms it.
+## Boundaries
+1. Keep the website repository AI-Exam unchanged.
+2. Do not duplicate the answer-marking engine in the client.
+3. Do not write directly to Firestore collections authoritative for users, credits, evaluations or results.
+4. Validate API responses and handle session expiry, upload failures and durable notification-read errors.
+5. Do not report evaluation or payment success before the backend confirms it.
