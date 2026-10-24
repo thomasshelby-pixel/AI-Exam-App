@@ -320,6 +320,7 @@ const s = StyleSheet.create({
   recheckSuccess: { color: "#C7F36B", fontSize: 11, lineHeight: 17 },
   recheckHistory: { gap: 8, borderTopWidth: 1, borderTopColor: "#27354C", paddingTop: 10 },
   recheckItem: { borderRadius: 10, backgroundColor: "#0D1424", padding: 10, gap: 5 },
+  link: { color: "#60A5FA", fontSize: 11, fontWeight: "900" },
   reportCard: { backgroundColor: "#11192A", borderColor: "#263149", borderWidth: 1, borderRadius: 16, padding: 15, gap: 12 },
   reportHeading: { color: "#F1F4FA", fontSize: 17, fontWeight: "900" },
   reportSubheading: { color: "#C7F36B", fontSize: 12, fontWeight: "900" },
