@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: mobile-ci-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
